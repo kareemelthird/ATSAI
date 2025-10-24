@@ -1,0 +1,48 @@
+services:
+  # PostgreSQL Database
+  - type: pserv
+    name: ats-database
+    env: docker
+    plan: free
+    region: frankfurt
+    databases:
+      - name: atsdb
+        databaseName: atsdb
+        user: atsuser
+
+  # Backend API
+  - type: web
+    name: ats-backend
+    env: python
+    region: frankfurt
+    plan: free
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ats-database
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: GROQ_API_KEY
+        sync: false
+      - key: PYTHON_VERSION
+        value: 3.11.0
+    healthCheckPath: /api/v1/health
+
+  # Frontend
+  - type: web
+    name: ats-frontend
+    env: static
+    region: frankfurt
+    plan: free
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: frontend/dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://ats-backend.onrender.com
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
