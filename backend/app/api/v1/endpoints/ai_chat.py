@@ -43,8 +43,13 @@ async def chat_endpoint(
         
         execution_time = int((time.time() - start_time) * 1000)  # Convert to milliseconds
         
-        # Extract candidate IDs for database storage
-        candidate_ids = [c["id"] for c in response_data.get("candidates", [])]
+        # Extract candidate IDs - handle both list of strings and list of dicts
+        candidates_data = response_data.get("candidates", [])
+        if candidates_data and isinstance(candidates_data[0], dict):
+            candidate_ids = [c["id"] for c in candidates_data]
+        else:
+            # Already a list of UUIDs (strings)
+            candidate_ids = candidates_data
         
         # Save query to database
         ai_query = models.AIChatQuery(
