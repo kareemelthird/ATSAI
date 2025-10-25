@@ -320,8 +320,37 @@ async def chat_with_database(query: str, db: Session, current_user = None) -> Di
     if current_user and hasattr(current_user, 'use_personal_ai_key') and current_user.use_personal_ai_key:
         user_api_key = getattr(current_user, 'personal_groq_api_key', None)
     
-    # Get all candidates with their related data
-    candidates = db.query(models.Candidate).all()
+    # Smart candidate filtering based on query
+    query_lower = query.lower()
+    
+    # Check if query mentions specific candidate names
+    all_candidates = db.query(models.Candidate).all()
+    relevant_candidates = []
+    
+    # If specific names are mentioned, filter to those candidates
+    for candidate in all_candidates:
+        full_name = f"{candidate.first_name} {candidate.last_name}".lower()
+        first_name = candidate.first_name.lower()
+        last_name = candidate.last_name.lower()
+        
+        # Check if candidate name is mentioned in query
+        if (first_name in query_lower or 
+            last_name in query_lower or 
+            full_name in query_lower):
+            relevant_candidates.append(candidate)
+    
+    # If no specific names mentioned, or query asks for "all" or "list", include all candidates
+    if not relevant_candidates or any(word in query_lower for word in ['all', 'list', 'show', 'كل', 'جميع']):
+        candidates = all_candidates
+    else:
+        # Use only the relevant candidates mentioned in the query
+        candidates = relevant_candidates
+    
+    # Debug logging
+    print(f"🔍 Chat query: {query}")
+    print(f"📊 Found {len(candidates)} relevant candidates:")
+    for c in candidates:
+        print(f"   - {c.first_name} {c.last_name}")
     
     # Build comprehensive context about candidates
     context_parts = []
@@ -385,27 +414,31 @@ Work Experience:
     system_message = """You are a professional HR AI assistant helping recruiters find the best candidates.
 
 IMPORTANT INSTRUCTIONS:
-- Give direct, natural, conversational answers
+- Give direct, natural, conversational answers based ONLY on the candidate data provided
+- ALWAYS use the exact names and information from the candidate profiles below
 - Be friendly and helpful
-- When asked about a candidate, provide specific details about their experience and skills
+- When comparing candidates, provide specific details about BOTH candidates' experience and skills
 - Support both English and Arabic queries
 - Keep answers concise but informative
 - Don't be overly formal or robotic
-- If asked about strengths/weaknesses, analyze the candidate's profile and give honest insights
+- If asked about strengths/weaknesses, analyze the candidate's profile and give honest insights based on their CV
+- When asked "should I hire X?", provide a balanced assessment based on their qualifications
+- NEVER say you don't have information if the candidate data is provided below
 
 Example good responses:
 - "Ahmed has strong SharePoint and Power Platform development skills with X years of experience..."
 - "بناءً على سيرته الذاتية، أحمد لديه خبرة قوية في..."
+- "Comparing Adham and Ahmed: Adham specializes in..., while Ahmed focuses on..."
 """
 
     user_prompt = f"""Answer this question about our candidates in a natural, helpful way:
 
 Question: {query}
 
-Candidate Database:
+CANDIDATE PROFILES:
 {database_context}
 
-Please provide a natural, helpful answer based on the candidate data above."""
+IMPORTANT: The candidates listed above are the ONLY ones you should discuss. Use their exact names and details from their profiles. Provide a natural, helpful answer based on the candidate data above."""
 
     # Call AI to generate response
     try:
