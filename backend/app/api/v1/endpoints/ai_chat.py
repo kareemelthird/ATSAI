@@ -51,6 +51,25 @@ async def chat_endpoint(
             # Already a list of UUIDs (strings)
             candidate_ids = candidates_data
         
+        # Fetch candidate details from database to create CandidateInfo objects
+        candidate_info_list = []
+        if candidate_ids:
+            from uuid import UUID
+            # Convert string UUIDs to UUID objects
+            uuid_list = [UUID(str(cid)) for cid in candidate_ids]
+            
+            # Query database for candidate details
+            candidates = db.query(models.Candidate).filter(
+                models.Candidate.id.in_(uuid_list)
+            ).all()
+            
+            # Create CandidateInfo objects
+            for candidate in candidates:
+                candidate_info_list.append({
+                    "id": candidate.id,
+                    "name": f"{candidate.first_name} {candidate.last_name}"
+                })
+        
         # Save query to database
         ai_query = models.AIChatQuery(
             user_id=request.user_id or "anonymous",
@@ -68,7 +87,7 @@ async def chat_endpoint(
         # Return response with candidate info (names included)
         return AIChatResponse(
             response=response_data.get("response", ""),
-            candidates=response_data.get("candidates", []),
+            candidates=candidate_info_list,
             jobs=response_data.get("jobs", [])
         )
         
