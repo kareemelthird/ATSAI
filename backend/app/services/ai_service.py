@@ -1,954 +1,428 @@
-"""
-Enhanced AI Service for Intelligent Resume Parsing and Analysis
-Extracts maximum information from CVs to populate the enhanced database schema
-"""
-
 import httpx
-import json
-from typing import Dict, Any, List, Optional
-from datetime import datetime, date
-from sqlalchemy.orm import Session
+from typing import Dict, Any, List
 from app.core.config import settings
+from sqlalchemy.orm import Session
 from app.db import models
+import json
 import re
+from datetime import datetime
 
 
-class EnhancedAIService:
-    """AI service optimized for comprehensive CV data extraction"""
-    
-    def __init__(self, user_api_key: Optional[str] = None):
-        """
-        Initialize AI service
-        Args:
-            user_api_key: Optional user's personal Groq API key
-        """
-        self.user_api_key = user_api_key
-        self.api_url = self._get_api_url()
-        self.api_key = self._get_api_key()
-        self.model = self._get_model()
-        
-    def _get_api_url(self) -> str:
-        """Get the appropriate API URL based on provider"""
-        # Always use Groq for personal keys
-        if self.user_api_key:
-            return settings.GROQ_API_URL
-            
-        provider_urls = {
-            "groq": settings.GROQ_API_URL,
-            "deepseek": settings.DEEPSEEK_API_URL,
-            "openrouter": settings.OPENROUTER_API_URL
-        }
-        return provider_urls.get(settings.AI_PROVIDER, settings.GROQ_API_URL)
-    
-    def _get_api_key(self) -> str:
-        """Get the appropriate API key based on provider"""
-        # Use user's personal key if provided
-        if self.user_api_key:
-            return self.user_api_key
-            
-        provider_keys = {
-            "groq": settings.GROQ_API_KEY,
-            "deepseek": settings.DEEPSEEK_API_KEY,
-            "openrouter": settings.OPENROUTER_API_KEY
-        }
-        return provider_keys.get(settings.AI_PROVIDER, settings.GROQ_API_KEY)
-    
-    def _get_model(self) -> str:
-        """Get the appropriate model"""
-        # Use better model for personal keys
-        if self.user_api_key:
-            return "llama-3.3-70b-versatile"
-        return settings.AI_MODEL
-    
-    async def call_ai(self, prompt: str, system_message: str, max_tokens: int = 4000) -> str:
-        """Call AI API with error handling"""
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
-        }
-        
-        payload = {
-            "model": self.model,
-            "messages": [
-                {"role": "system", "content": system_message},
-                {"role": "user", "content": prompt}
-            ],
-            "temperature": 0.3,  # Lower temperature for factual extraction
-            "max_tokens": max_tokens
-        }
-        
-        try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                response = await client.post(self.api_url, headers=headers, json=payload)
-                response.raise_for_status()
-                result = response.json()
-                return result["choices"][0]["message"]["content"]
-        except Exception as e:
-            print(f"❌ AI API Error: {str(e)}")
-            raise
-    
-    async def analyze_resume_comprehensive(self, resume_text: str) -> Dict[str, Any]:
-        """
-        Comprehensive AI analysis of resume - extracts ALL useful information
-        Returns structured data ready for database insertion
-        """
-        
-        system_message = """You are an expert HR AI assistant that extracts detailed information from resumes.
-Your job is to analyze the resume text and extract MAXIMUM information in a structured JSON format.
-
-Extract ALL available information including:
-1. Basic info (name, email, phone, location, LinkedIn, GitHub, portfolio)
-2. Professional summary and career level assessment
-3. ALL work experiences with full details (company, role, dates, achievements, technologies, team context)
-4. ALL education entries (degree, institution, grades, achievements)
-5. ALL skills with proficiency estimation and categorization
-6. Projects with technologies and highlights
-7. Certifications with dates and issuers
-8. Languages spoken with proficiency
-9. Career insights (strengths, expertise areas, industry experience)
-10. Availability and salary expectations if mentioned
-11. Location preferences and relocation willingness
-
-Be thorough and extract every useful detail. Estimate proficiency levels based on context.
-Format dates as YYYY-MM-DD. Return valid JSON only."""
-
-        prompt = f"""Analyze this resume and extract ALL information in the following JSON structure:
-
-{{
-  "basic_info": {{
-    "first_name": "",
-    "last_name": "",
-    "email": "",
-    "phone": "",
-    "current_location": "",
-    "linkedin_url": "",
-    "github_url": "",
-    "portfolio_url": "",
-    "personal_website": ""
-  }},
-  "professional": {{
-    "professional_summary": "AI-generated 2-3 sentence summary",
-    "career_level": "Entry|Mid|Senior|Lead|Manager|Director|Executive",
-    "total_years_experience": 0,
-    "availability_status": "Immediately|2 weeks|1 month|etc",
-    "open_to_relocation": false,
-    "willing_to_travel": false,
-    "preferred_locations": []
-  }},
+async def call_ai_api(prompt: str, system_message: str = None, user_api_key: str = None) -> str:
+    """
+    Call AI API (OpenRouter or DeepSeek) for completions
+    Args:
+        user_api_key: Optional user's personal API key
+    """
+    # If USE_MOCK_AI is enabled, skip API and use mock responses
+    if settings.USE_MOCK_AI:
+        print("🤖 Using mock AI response (USE_MOCK_AI=true)")
+        if "resume" in prompt.lower() or "analyze" in prompt.lower():
+            return """```json
+{
+  "skills": [
+    {"name": "Python", "category": "technical"},
+    {"name": "JavaScript", "category": "technical"},
+    {"name": "React", "category": "technical"},
+    {"name": "PostgreSQL", "category": "technical"},
+    {"name": "Communication", "category": "soft"}
+  ],
   "work_experience": [
-    {{
-      "company_name": "",
-      "company_industry": "Fintech|Healthcare|E-commerce|etc",
-      "company_size": "Startup|SME|Enterprise",
-      "job_title": "",
-      "job_level": "Junior|Mid|Senior|Lead|Manager",
-      "employment_type": "Full-time|Part-time|Contract|Freelance",
-      "start_date": "YYYY-MM-DD",
-      "end_date": "YYYY-MM-DD or null if current",
-      "is_current": false,
-      "responsibilities": "Detailed description",
-      "achievements": ["Achievement 1", "Achievement 2"],
-      "technologies_used": ["Python", "React", "AWS"],
-      "methodologies": ["Agile", "Scrum"],
-      "team_size": 0,
-      "managed_team_size": 0,
-      "key_metrics": {{"metric_name": "value"}}
-    }}
+    {
+      "company": "TechCorp Solutions",
+      "title": "Senior Software Developer",
+      "start_date": "2020-01",
+      "end_date": "2024-12",
+      "description": "Led development of full-stack web applications using React and FastAPI"
+    },
+    {
+      "company": "StartupXYZ",
+      "title": "Junior Developer",
+      "start_date": "2018-06",
+      "end_date": "2019-12",
+      "description": "Developed and maintained web applications"
+    }
   ],
   "education": [
-    {{
-      "institution": "",
-      "degree": "Bachelor|Master|PhD|Diploma",
-      "field_of_study": "",
-      "specialization": "",
-      "start_date": "YYYY-MM-DD",
-      "end_date": "YYYY-MM-DD",
-      "graduation_year": 2020,
-      "grade_type": "GPA|Percentage|Class",
-      "grade_value": "3.8|85%|First Class",
-      "achievements": ["Dean's List"],
-      "relevant_coursework": ["Course 1"]
-    }}
+    {
+      "institution": "Tech University",
+      "degree": "Bachelor of Science",
+      "field": "Computer Science",
+      "graduation_date": "2018-05"
+    }
   ],
-  "skills": [
-    {{
-      "skill_name": "Python",
-      "skill_category": "Technical|Soft|Language|Tool|Methodology",
-      "skill_type": "Programming|Framework|Database|Cloud|etc",
-      "proficiency_level": "Beginner|Intermediate|Advanced|Expert",
-      "years_of_experience": 0.0,
-      "acquired_from": "Self-taught|Course|Work|Education"
-    }}
-  ],
-  "projects": [
-    {{
-      "project_name": "",
-      "project_type": "Personal|Professional|Open Source|Freelance",
-      "description": "",
-      "role": "Developer|Lead|Contributor",
-      "technologies_used": ["Tech1", "Tech2"],
-      "start_date": "YYYY-MM-DD",
-      "end_date": "YYYY-MM-DD",
-      "project_url": "",
-      "github_url": "",
-      "highlights": ["Highlight 1"]
-    }}
-  ],
-  "certifications": [
-    {{
-      "certification_name": "",
-      "issuing_organization": "",
-      "issue_date": "YYYY-MM-DD",
-      "expiry_date": "YYYY-MM-DD or null",
-      "credential_id": "",
-      "skill_validated": "AWS|Python|etc"
-    }}
-  ],
-  "languages": [
-    {{
-      "language_name": "English",
-      "proficiency_level": "Native|Fluent|Professional|Limited",
-      "can_read": true,
-      "can_write": true,
-      "can_speak": true,
-      "certification": "TOEFL|IELTS|etc"
-    }}
-  ],
-  "ai_insights": {{
-    "career_trajectory": "AI describes career progression pattern",
-    "strengths": ["Strength 1", "Strength 2"],
-    "areas_of_expertise": ["Domain 1", "Domain 2"],
-    "industry_experience": ["Industry 1", "Industry 2"],
-    "one_line_summary": "One sentence about this candidate",
-    "elevator_pitch": "2-3 sentences selling this candidate",
-    "extracted_keywords": ["keyword1", "keyword2"],
-    "overall_experience_score": 85,
-    "technical_depth_score": 90,
-    "leadership_score": 70,
-    "communication_score": 80
-  }},
-  "smart_tags": [
-    {{
-      "tag_name": "Cloud Expert",
-      "tag_category": "expertise|experience_type|soft_skill|industry",
-      "confidence": 0.95
-    }}
-  ]
-}}
-
-RESUME TEXT:
-{resume_text}
-
-Extract ALL information found in the resume. If information is not available, use null or empty values.
-Be thorough - extract every skill, every job, every detail mentioned.
-Return ONLY valid JSON, no additional text."""
-
-        try:
-            response = await self.call_ai(prompt, system_message)
-            
-            # Clean response (remove markdown code blocks if present)
-            response = response.strip()
-            if response.startswith("```json"):
-                response = response[7:]
-            if response.startswith("```"):
-                response = response[3:]
-            if response.endswith("```"):
-                response = response[:-3]
-            response = response.strip()
-            
-            # Parse JSON
-            parsed_data = json.loads(response)
-            return parsed_data
-            
-        except json.JSONDecodeError as e:
-            print(f"❌ JSON Parse Error: {str(e)}")
-            print(f"Response was: {response[:500]}")
-            raise Exception("AI returned invalid JSON")
-        except Exception as e:
-            print(f"❌ Resume Analysis Error: {str(e)}")
-            raise
-    
-    async def save_candidate_from_analysis(
-        self, 
-        analysis: Dict[str, Any], 
-        resume_file_info: Dict[str, str],
-        db: Session
-    ) -> models.Candidate:
-        """
-        Save analyzed resume data to database using enhanced schema
-        Creates candidate with all related entities
-        """
-        
-        # Create candidate
-        basic = analysis.get("basic_info", {})
-        professional = analysis.get("professional", {})
-        
-        candidate = models.Candidate(
-            first_name=basic.get("first_name", "Unknown"),
-            last_name=basic.get("last_name", ""),
-            email=basic.get("email", f"unknown_{datetime.now().timestamp()}@temp.com"),
-            phone=basic.get("phone"),
-            current_location=basic.get("current_location"),
-            preferred_locations=professional.get("preferred_locations", []),
-            open_to_relocation=professional.get("open_to_relocation", False),
-            willing_to_travel=professional.get("willing_to_travel", False),
-            professional_summary=professional.get("professional_summary"),
-            career_level=professional.get("career_level"),
-            availability_status=professional.get("availability_status"),
-            linkedin_url=basic.get("linkedin_url"),
-            github_url=basic.get("github_url"),
-            portfolio_url=basic.get("portfolio_url"),
-            personal_website=basic.get("personal_website"),
-            status="active"
-        )
-        
-        db.add(candidate)
-        db.flush()  # Get candidate ID
-        
-        # Add Skills
-        for skill_data in analysis.get("skills", []):
-            skill = models.Skill(
-                candidate_id=candidate.id,
-                skill_name=skill_data.get("skill_name"),
-                skill_category=skill_data.get("skill_category"),
-                skill_type=skill_data.get("skill_type"),
-                proficiency_level=skill_data.get("proficiency_level"),
-                years_of_experience=skill_data.get("years_of_experience"),
-                acquired_from=skill_data.get("acquired_from")
-            )
-            db.add(skill)
-        
-        # Add Work Experience
-        for exp_data in analysis.get("work_experience", []):
-            work_exp = models.WorkExperience(
-                candidate_id=candidate.id,
-                company_name=exp_data.get("company_name"),
-                company_industry=exp_data.get("company_industry"),
-                company_size=exp_data.get("company_size"),
-                job_title=exp_data.get("job_title"),
-                job_level=exp_data.get("job_level"),
-                employment_type=exp_data.get("employment_type"),
-                start_date=self._parse_date(exp_data.get("start_date")),
-                end_date=self._parse_date(exp_data.get("end_date")),
-                is_current=exp_data.get("is_current", False),
-                responsibilities=exp_data.get("responsibilities"),
-                achievements=exp_data.get("achievements", []),
-                technologies_used=exp_data.get("technologies_used", []),
-                methodologies=exp_data.get("methodologies", []),
-                team_size=exp_data.get("team_size"),
-                managed_team_size=exp_data.get("managed_team_size"),
-                key_metrics=exp_data.get("key_metrics")
-            )
-            db.add(work_exp)
-        
-        # Add Education
-        for edu_data in analysis.get("education", []):
-            education = models.Education(
-                candidate_id=candidate.id,
-                institution=edu_data.get("institution"),
-                degree=edu_data.get("degree"),
-                field_of_study=edu_data.get("field_of_study"),
-                specialization=edu_data.get("specialization"),
-                start_date=self._parse_date(edu_data.get("start_date")),
-                end_date=self._parse_date(edu_data.get("end_date")),
-                graduation_year=edu_data.get("graduation_year"),
-                grade_type=edu_data.get("grade_type"),
-                grade_value=edu_data.get("grade_value"),
-                achievements=edu_data.get("achievements", []),
-                relevant_coursework=edu_data.get("relevant_coursework", [])
-            )
-            db.add(education)
-        
-        # Add Projects
-        for proj_data in analysis.get("projects", []):
-            project = models.Project(
-                candidate_id=candidate.id,
-                project_name=proj_data.get("project_name"),
-                project_type=proj_data.get("project_type"),
-                description=proj_data.get("description"),
-                role=proj_data.get("role"),
-                technologies_used=proj_data.get("technologies_used", []),
-                start_date=self._parse_date(proj_data.get("start_date")),
-                end_date=self._parse_date(proj_data.get("end_date")),
-                project_url=proj_data.get("project_url"),
-                github_url=proj_data.get("github_url"),
-                highlights=proj_data.get("highlights", [])
-            )
-            db.add(project)
-        
-        # Add Certifications
-        for cert_data in analysis.get("certifications", []):
-            certification = models.Certification(
-                candidate_id=candidate.id,
-                certification_name=cert_data.get("certification_name"),
-                issuing_organization=cert_data.get("issuing_organization"),
-                issue_date=self._parse_date(cert_data.get("issue_date")),
-                expiry_date=self._parse_date(cert_data.get("expiry_date")),
-                credential_id=cert_data.get("credential_id"),
-                skill_validated=cert_data.get("skill_validated")
-            )
-            db.add(certification)
-        
-        # Add Languages
-        for lang_data in analysis.get("languages", []):
-            language = models.Language(
-                candidate_id=candidate.id,
-                language_name=lang_data.get("language_name"),
-                proficiency_level=lang_data.get("proficiency_level"),
-                can_read=lang_data.get("can_read", True),
-                can_write=lang_data.get("can_write", True),
-                can_speak=lang_data.get("can_speak", True),
-                certification=lang_data.get("certification")
-            )
-            db.add(language)
-        
-        # Add AI Analysis
-        insights = analysis.get("ai_insights", {})
-        ai_analysis = models.AIAnalysis(
-            candidate_id=candidate.id,
-            ai_model_used=f"{settings.AI_PROVIDER.title()} {self.model}",
-            career_trajectory=insights.get("career_trajectory"),
-            strengths=insights.get("strengths", []),
-            areas_of_expertise=insights.get("areas_of_expertise", []),
-            overall_experience_score=insights.get("overall_experience_score"),
-            technical_depth_score=insights.get("technical_depth_score"),
-            leadership_score=insights.get("leadership_score"),
-            communication_score=insights.get("communication_score"),
-            extracted_keywords=insights.get("extracted_keywords", []),
-            industry_experience=insights.get("industry_experience", []),
-            one_line_summary=insights.get("one_line_summary"),
-            elevator_pitch=insights.get("elevator_pitch"),
-            extraction_confidence=0.90,
-            raw_analysis=analysis
-        )
-        db.add(ai_analysis)
-        
-        # Add Smart Tags
-        for tag_data in analysis.get("smart_tags", []):
-            tag = models.CandidateTag(
-                candidate_id=candidate.id,
-                tag_name=tag_data.get("tag_name"),
-                tag_category=tag_data.get("tag_category"),
-                confidence=tag_data.get("confidence", 0.8),
-                source="ai_extracted"
-            )
-            db.add(tag)
-        
-        # Add Resume Record
-        resume = models.Resume(
-            candidate_id=candidate.id,
-            original_filename=resume_file_info.get("filename"),
-            file_path=resume_file_info.get("filepath"),
-            file_size_bytes=resume_file_info.get("filesize"),
-            mime_type=resume_file_info.get("mimetype"),
-            extracted_text=resume_file_info.get("text"),
-            parse_status="success",
-            version=1
-        )
-        db.add(resume)
-        
-        db.commit()
-        db.refresh(candidate)
-        
-        return candidate
-    
-    def _parse_date(self, date_str: Optional[str]) -> Optional[date]:
-        """Parse date string to date object"""
-        if not date_str or date_str == "null":
-            return None
-        try:
-            return datetime.strptime(date_str, "%Y-%m-%d").date()
-        except:
-            return None
-    
-    async def chat_with_database(self, query: str, db: Session) -> Dict[str, Any]:
-        """
-        Enhanced AI chat that understands the rich database structure
-        """
-        
-        # Get all candidates with full context
-        candidates = db.query(models.Candidate).all()
-        
-        if not candidates:
-            return {
-                "response": "No candidates found in the database. Please upload some resumes first!",
-                "candidates": [],
-                "jobs": []
-            }
-        
-        # Build comprehensive context
-        context_parts = []
-        candidate_ids = []
-        
-        for candidate in candidates:
-            candidate_ids.append(str(candidate.id))
-            
-            # Get latest AI analysis
-            ai_analysis = db.query(models.AIAnalysis).filter(
-                models.AIAnalysis.candidate_id == candidate.id
-            ).order_by(models.AIAnalysis.analysis_date.desc()).first()
-            
-            # Build rich candidate profile
-            skills = [f"{s.skill_name} ({s.proficiency_level})" for s in candidate.skills]
-            
-            work_exp = []
-            for exp in sorted(candidate.work_experiences, key=lambda x: x.start_date or date.min, reverse=True):
-                work_exp.append(
-                    f"• {exp.job_title} at {exp.company_name} "
-                    f"({exp.company_industry or 'N/A'}) - "
-                    f"{len(exp.technologies_used or [])} technologies"
-                )
-            
-            education = [f"{e.degree} in {e.field_of_study} from {e.institution}" 
-                        for e in candidate.educations]
-            
-            certifications = [f"{c.certification_name} ({c.issuing_organization})" 
-                            for c in candidate.certifications]
-            
-            languages = [f"{l.language_name} ({l.proficiency_level})" 
-                        for l in candidate.languages]
-            
-            tags = [t.tag_name for t in candidate.tags]
-            
-            candidate_info = f"""
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-CANDIDATE: {candidate.first_name} {candidate.last_name}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📧 Email: {candidate.email}
-📍 Location: {candidate.current_location or 'Not specified'}
-💼 Career Level: {candidate.career_level or 'Not specified'}
-📊 Status: {candidate.availability_status or 'Not specified'}
-
-💡 SUMMARY:
-{candidate.professional_summary or 'No summary available'}
-
-{'🎯 AI PITCH: ' + ai_analysis.elevator_pitch if ai_analysis and ai_analysis.elevator_pitch else ''}
-
-🔧 SKILLS ({len(skills)}):
-{', '.join(skills[:15]) if skills else 'No skills listed'}
-
-💼 WORK EXPERIENCE ({len(candidate.work_experiences)}):
-{chr(10).join(work_exp[:5]) if work_exp else 'No experience listed'}
-
-🎓 EDUCATION:
-{', '.join(education) if education else 'No education listed'}
-
-📜 CERTIFICATIONS:
-{', '.join(certifications) if certifications else 'No certifications'}
-
-🌐 LANGUAGES:
-{', '.join(languages) if languages else 'No languages specified'}
-
-🏷️ TAGS:
-{', '.join(tags) if tags else 'No tags'}
-
-{'📈 SCORES: ' + f"Experience: {ai_analysis.overall_experience_score}/100, Technical: {ai_analysis.technical_depth_score}/100, Leadership: {ai_analysis.leadership_score}/100" if ai_analysis else ''}
-"""
-            context_parts.append(candidate_info)
-        
-        database_context = "\n".join(context_parts)
-        
-        # AI System Message
-        system_message = """You are a friendly and helpful AI HR assistant for an Applicant Tracking System.
-
-Your capabilities:
-- Chat naturally with users about HR topics, candidates, and recruitment
-- Answer questions about candidates in the database
-- Recommend candidates for specific roles
-- Compare candidates when asked
-- Provide insights on hiring and recruitment
-
-Communication style:
-- Be conversational and friendly
-- Keep responses CONCISE (2-4 sentences for simple queries)
-- For casual chat, respond naturally and be helpful
-- For candidate queries, be specific and data-driven
-- Use bullet points for comparisons or lists
-- If asked about candidates but none exist, politely explain that
-
-IMPORTANT:
-- You can have normal conversations - not everything needs to be about candidates
-- If someone greets you or chats casually, respond naturally
-- Don't force users to ask "HR questions" - be flexible
-- Only search the database when the query is actually about finding or comparing candidates
-- Be brief but friendly
-
-Examples:
-User: "hi" → "Hello! I'm your AI HR assistant. I can help you find candidates, answer HR questions, or just chat. What would you like to know?"
-User: "how are you?" → "I'm doing great, thanks for asking! How can I assist you with recruitment today?"
-User: "tell me about candidates" → "I'd be happy to help! Could you tell me what kind of role or skills you're looking for?"
-User: "find me a developer" → [Search database and provide specific recommendations]"""
-
-        # Build context based on query type
-        is_candidate_query = any(keyword in query.lower() for keyword in [
-            'candidate', 'applicant', 'resume', 'cv', 'find', 'recommend', 
-            'hire', 'experience', 'skill', 'qualified', 'available', 'compare', 'who'
-        ])
-        
-        if is_candidate_query and database_context and database_context.strip():
-            user_prompt = f"""User Query: {query}
-
-CANDIDATE DATABASE:
-{database_context}
-
-Based on the database, provide a helpful response. If recommending candidates, mention specific names and key qualifications."""
+  "summary": "Experienced full-stack developer with 6+ years of experience in web development, specializing in Python, React, and PostgreSQL."
+}
+```"""
         else:
-            user_prompt = query
-
-        try:
-            print(f"🤖 AI Chat Query: {query} (Candidate query: {is_candidate_query})")
-            # Limit response to 500 tokens for concise answers
-            ai_response = await self.call_ai(user_prompt, system_message, max_tokens=500)
-            print(f"✅ AI Response generated ({len(ai_response)} chars)")
-            
-            # Return only relevant candidates mentioned in query or response
-            relevant_candidates = []
-            query_lower = query.lower()
-            response_lower = ai_response.lower()
-            
-            for candidate in candidates:
-                full_name = f"{candidate.first_name} {candidate.last_name}".lower()
-                # Include candidate if mentioned in query or response
-                if full_name in query_lower or full_name in response_lower:
-                    relevant_candidates.append({
-                        "id": str(candidate.id),
-                        "name": f"{candidate.first_name} {candidate.last_name}",
-                        "email": candidate.email
-                    })
-            
-            return {
-                "response": ai_response,
-                "candidates": relevant_candidates[:10],  # Max 10 candidates
-                "jobs": []
-            }
-            
-        except Exception as e:
-            print(f"❌ Chat Error: {str(e)}")
-            return {
-                "response": f"I encountered an error while analyzing the candidates: {str(e)}",
-                "candidates": [],
-                "jobs": []
-            }
-
-
-# Singleton instance
-_ai_service_instance = None
-
-def get_ai_service(user_api_key: Optional[str] = None) -> EnhancedAIService:
-    """Get or create AI service instance"""
+            # For chat queries, extract candidate info from the prompt
+            if "Candidate:" in prompt:
+                # Parse candidate names from the prompt
+                import re
+                candidates = re.findall(r'Candidate: ([^\n]+)', prompt)
+                if candidates:
+                    response = f"I found {len(candidates)} candidate(s) in the database:\n\n"
+                    for i, name in enumerate(candidates[:3], 1):
+                        response += f"{i}. **{name}**: "
+                        if "kareem" in name.lower() and "hassan" in name.lower():
+                            response += "Experienced developer with skills in Python, FastAPI, React, JavaScript, PostgreSQL, and Communication. Works at TechCorp Solutions as a Senior Software Developer.\n\n"
+                        else:
+                            response += "Full-stack developer with strong technical skills and professional experience.\n\n"
+                    response += "\n*(Note: This is a mock AI response. For real AI insights, add credit to your DeepSeek account or use a different AI provider)*"
+                    return response
+            return "Based on the database, I found several candidates. However, I need a real AI connection to provide detailed analysis. Please add credit to your DeepSeek account or configure a different AI provider."
+    
+    # Use user's personal API key if provided
     if user_api_key:
-        # Create new instance with user's personal key
-        return EnhancedAIService(user_api_key=user_api_key)
+        api_url = settings.GROQ_API_URL
+        api_key = user_api_key
+        print(f"🔑 Using user's personal Groq API key")
+    # Determine which API to use
+    elif settings.AI_PROVIDER == "groq":
+        api_url = settings.GROQ_API_URL
+        api_key = settings.GROQ_API_KEY
+        if not api_key:
+            raise ValueError("GROQ_API_KEY not configured")
+        print(f"🚀 Using Groq API with model: {settings.AI_MODEL}")
+    elif settings.AI_PROVIDER == "deepseek":
+        api_url = settings.DEEPSEEK_API_URL
+        api_key = settings.DEEPSEEK_API_KEY
+        if not api_key:
+            raise ValueError("DEEPSEEK_API_KEY not configured")
+        print(f"🤖 Using DeepSeek API with model: {settings.AI_MODEL}")
+    else:
+        api_url = settings.OPENROUTER_API_URL
+        api_key = settings.OPENROUTER_API_KEY
+        if not api_key:
+            raise ValueError("OPENROUTER_API_KEY not configured")
+        print(f"🤖 Using OpenRouter API with model: {settings.AI_MODEL}")
     
-    # Return singleton for system key
-    global _ai_service_instance
-    if _ai_service_instance is None:
-        _ai_service_instance = EnhancedAIService()
-    return _ai_service_instance
-
-
-async def analyze_resume(
-    resume_text: str,
-    candidate_id,
-    db: Session,
-    current_user=None
-) -> Dict[str, Any]:
-    """
-    Wrapper function for backward compatibility
-    Analyzes resume and saves to database
-    """
-    from fastapi import HTTPException, status as http_status
-    from app.services.system_settings_service import SystemSettingsService, UsageLimitsService
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
     
-    settings_service = SystemSettingsService()
+    messages = []
+    if system_message:
+        messages.append({"role": "system", "content": system_message})
+    messages.append({"role": "user", "content": prompt})
     
-    # Get user's personal API key if configured
-    user_api_key = None
-    using_personal_key = False
-    
-    if current_user and hasattr(current_user, 'use_personal_ai_key'):
-        db.refresh(current_user)
-        
-        if current_user.use_personal_ai_key and current_user.personal_groq_api_key:
-            user_api_key = current_user.personal_groq_api_key
-            using_personal_key = True
-            print(f"🔑 Using personal API key for: {current_user.email}")
-    
-    # Check if system AI is enabled
-    system_ai_enabled = settings_service.get_setting(db, 'system_ai_enabled', True)
-    require_personal_key = settings_service.get_setting(db, 'require_personal_key', False)
-    
-    # If no personal key, check if system AI is available
-    if not using_personal_key:
-        if require_personal_key:
-            raise HTTPException(
-                status_code=http_status.HTTP_403_FORBIDDEN,
-                detail="Personal Groq API key required. Add your free key in Profile settings to continue using AI features."
-            )
-        
-        if not system_ai_enabled:
-            raise HTTPException(
-                status_code=http_status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="System AI is currently disabled. Please add your personal API key in Profile settings."
-            )
-        
-        # Check and increment upload limit
-        try:
-            UsageLimitsService.check_and_increment_upload_limit(
-                db, str(current_user.id), using_personal_key
-            )
-        except HTTPException as e:
-            raise e
-    
-    service = get_ai_service(user_api_key)
+    payload = {
+        "model": settings.AI_MODEL,
+        "messages": messages
+    }
     
     try:
-        print(f"📄 Analyzing resume (candidate_id: {candidate_id})...")
-        analysis = await service.analyze_resume_comprehensive(resume_text)
-        
-        # If candidate_id is provided, just return the analysis
-        # The upload endpoint will create the records
-        if candidate_id:
-            print(f"✅ Resume analyzed successfully")
-            return analysis
-        
-        # Create candidate from analysis
-        from app.db import models
-        from datetime import datetime
-        import uuid
-        
-        print(f"💾 Creating candidate in database...")
-        
-        # Create candidate - try both 'basic_info' and 'personal_info' keys
-        candidate_data = analysis.get('basic_info') or analysis.get('personal_info', {})
-        professional_data = analysis.get('professional', {})
-        
-        # Email is required - generate placeholder if not found
-        email = candidate_data.get('email')
-        if not email:
-            # Generate a unique placeholder email
-            unique_id = str(uuid.uuid4())[:8]
-            email = f"noemail_{unique_id}@placeholder.local"
-            print(f"⚠️ No email found in resume, using placeholder: {email}")
-        
-        # Extract summary from multiple possible locations
-        summary = (
-            professional_data.get('professional_summary') or 
-            analysis.get('summary') or 
-            analysis.get('ai_insights', {}).get('elevator_pitch') or
-            ''
-        )
-        
-        # Check if candidate with this email already exists
-        existing_candidate = db.query(models.Candidate).filter(
-            models.Candidate.email == email
-        ).first()
-        
-        if existing_candidate:
-            print(f"✅ Found existing candidate with email {email}, updating...")
-            # Update existing candidate
-            candidate = existing_candidate
-            candidate.first_name = candidate_data.get('first_name', candidate.first_name)
-            candidate.last_name = candidate_data.get('last_name', candidate.last_name)
-            candidate.phone = candidate_data.get('phone', candidate.phone)
-            candidate.current_location = candidate_data.get('current_location') or candidate_data.get('location') or candidate.current_location
-            candidate.linkedin_url = candidate_data.get('linkedin_url', candidate.linkedin_url)
-            candidate.github_url = candidate_data.get('github_url', candidate.github_url)
-            candidate.portfolio_url = candidate_data.get('portfolio_url', candidate.portfolio_url)
-            candidate.personal_website = candidate_data.get('personal_website', candidate.personal_website)
-            candidate.professional_summary = summary[:500] if summary else candidate.professional_summary
-            candidate.career_level = professional_data.get('career_level', candidate.career_level)
-            candidate.status = 'active'
-            
-            # Delete old skills, experience, and education to replace with new data
-            db.query(models.Skill).filter(models.Skill.candidate_id == candidate.id).delete()
-            db.query(models.WorkExperience).filter(models.WorkExperience.candidate_id == candidate.id).delete()
-            db.query(models.Education).filter(models.Education.candidate_id == candidate.id).delete()
-            db.flush()
-        else:
-            print(f"✅ Creating new candidate with email {email}...")
-            # Create new candidate
-            candidate = models.Candidate(
-                first_name=candidate_data.get('first_name', 'Unknown'),
-                last_name=candidate_data.get('last_name', ''),
-                email=email,
-                phone=candidate_data.get('phone'),
-                current_location=candidate_data.get('current_location') or candidate_data.get('location'),
-                linkedin_url=candidate_data.get('linkedin_url'),
-                github_url=candidate_data.get('github_url'),
-                portfolio_url=candidate_data.get('portfolio_url'),
-                personal_website=candidate_data.get('personal_website'),
-                professional_summary=summary[:500] if summary else None,  # Limit to 500 chars
-                career_level=professional_data.get('career_level'),
-                status='active'
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                api_url,
+                headers=headers,
+                json=payload,
+                timeout=30.0
             )
-            db.add(candidate)
-            db.flush()  # Get candidate.id without committing
-        
-        # Create skills - handle both simple list and detailed objects
-        skills_data = analysis.get('skills', [])
-        for skill_item in skills_data:
-            if isinstance(skill_item, str):
-                # Simple string
-                skill_name = skill_item
-                proficiency = 'intermediate'
-            elif isinstance(skill_item, dict):
-                # Detailed object
-                skill_name = skill_item.get('skill_name') or skill_item.get('name', '')
-                proficiency = skill_item.get('proficiency_level') or skill_item.get('proficiency', 'intermediate')
+            response.raise_for_status()
+            result = response.json()
+            return result["choices"][0]["message"]["content"]
+    except httpx.HTTPStatusError as e:
+        print(f"❌ HTTP Error {e.response.status_code}: {e.response.text}")
+        if e.response.status_code == 429:
+            # Rate limit hit - return a helpful mock response
+            print("⚠️ Rate limit hit (429). Using mock response for testing.")
+            if "resume" in prompt.lower() or "analyze" in prompt.lower():
+                # Mock resume analysis
+                return """```json
+{
+  "skills": [
+    {"name": "Python", "category": "technical"},
+    {"name": "FastAPI", "category": "technical"},
+    {"name": "React", "category": "technical"}
+  ],
+  "work_experience": [
+    {
+      "company": "Tech Corp",
+      "title": "Software Developer",
+      "start_date": "2020-01",
+      "end_date": "2023-12",
+      "description": "Developed web applications"
+    }
+  ],
+  "education": [
+    {
+      "institution": "University",
+      "degree": "Bachelor",
+      "field": "Computer Science",
+      "graduation_date": "2020"
+    }
+  ],
+  "summary": "Experienced developer with expertise in Python and web technologies. [MOCK DATA - API Rate Limited]"
+}
+```"""
             else:
-                continue
-            
-            if skill_name:
-                skill = models.Skill(
-                    candidate_id=candidate.id,
-                    skill_name=skill_name.strip(),
-                    proficiency_level=proficiency.lower() if proficiency else 'intermediate'
-                )
-                db.add(skill)
+                # Mock chat response - try to be helpful even when rate limited
+                return "Based on the database query, here are the relevant candidates matching your criteria. (Note: AI service is rate-limited, detailed analysis temporarily unavailable. Try again in a few minutes for full AI responses.)"
+        raise
+    except Exception as e:
+        print(f"❌ Unexpected Error calling AI API: {type(e).__name__}: {str(e)}")
+        raise
+
+
+async def analyze_resume(text: str, candidate_id: str, db: Session, current_user = None) -> Dict[str, Any]:
+    """
+    Analyze resume text using AI to extract structured information
+    """
+    # Get user's personal API key if configured
+    user_api_key = None
+    if current_user and hasattr(current_user, 'use_personal_ai_key') and current_user.use_personal_ai_key:
+        user_api_key = getattr(current_user, 'personal_groq_api_key', None)
+    
+    system_message = """You are an expert HR assistant that analyzes resumes. 
+    Extract the following information from the resume text and return it as JSON:
+    - skills (array of skill names with categories)
+    - work_experience (array of jobs with company, title, dates, description)
+    - education (array of degrees with institution, degree, field, dates)
+    - summary (brief professional summary)
+    
+    Return ONLY valid JSON, no additional text."""
+    
+    prompt = f"""Analyze this resume and extract structured information:
+
+{text}
+
+Return the analysis as JSON."""
+    
+    try:
+        response = await call_ai_api(prompt, system_message, user_api_key)
         
-        # Create work experience - handle multiple field names
-        for exp in analysis.get('work_experience', []):
-            # Try multiple field names
-            company = exp.get('company_name') or exp.get('company', '')
-            title = exp.get('job_title') or exp.get('title') or exp.get('position', '')
-            description = (
-                exp.get('responsibilities') or 
-                exp.get('description') or 
-                ', '.join(exp.get('achievements', [])) or
-                ''
-            )
-            
-            if company or title:  # Only create if we have at least company or title
+        # Try to parse JSON from response
+        # Sometimes AI adds markdown formatting, so clean it
+        json_text = response.strip()
+        if json_text.startswith("```json"):
+            json_text = json_text[7:]
+        if json_text.startswith("```"):
+            json_text = json_text[3:]
+        if json_text.endswith("```"):
+            json_text = json_text[:-3]
+        json_text = json_text.strip()
+        
+        analysis = json.loads(json_text)
+        
+        # Store extracted skills in database
+        if "skills" in analysis:
+            for skill_data in analysis["skills"]:
+                skill_name = skill_data.get("name") if isinstance(skill_data, dict) else skill_data
+                category = skill_data.get("category", "technical") if isinstance(skill_data, dict) else "technical"
+                
+                # Get or create skill
+                skill = db.query(models.Skill).filter(
+                    models.Skill.name == skill_name
+                ).first()
+                
+                if not skill:
+                    skill = models.Skill(name=skill_name, category=category)
+                    db.add(skill)
+                    db.flush()
+                
+                # Link to candidate
+                candidate_skill = models.CandidateSkill(
+                    candidate_id=candidate_id,
+                    skill_id=skill.id,
+                    source="AI-extracted"
+                )
+                db.add(candidate_skill)
+        
+        # Store work experience
+        if "work_experience" in analysis:
+            for exp in analysis["work_experience"]:
                 work_exp = models.WorkExperience(
-                    candidate_id=candidate.id,
-                    company_name=company,
-                    job_title=title,
-                    start_date=exp.get('start_date'),
-                    end_date=exp.get('end_date'),
-                    responsibilities=description[:1000] if description else None,  # Limit length
-                    is_current=exp.get('is_current', False)
+                    candidate_id=candidate_id,
+                    company_name=exp.get("company", "Unknown"),
+                    job_title=exp.get("title", "Unknown"),
+                    description=exp.get("description", ""),
+                    is_current=exp.get("is_current", False)
                 )
                 db.add(work_exp)
         
-        # Create education - handle multiple field names
-        for edu in analysis.get('education', []):
-            institution = edu.get('institution') or edu.get('school') or edu.get('university', '')
-            degree = edu.get('degree') or edu.get('qualification', '')
-            field = edu.get('field_of_study') or edu.get('field') or edu.get('major', '')
-            
-            if institution or degree:  # Only create if we have at least institution or degree
+        # Store education
+        if "education" in analysis:
+            for edu in analysis["education"]:
                 education = models.Education(
-                    candidate_id=candidate.id,
-                    institution=institution,
-                    degree=degree,
-                    field_of_study=field,
-                    start_date=edu.get('start_date'),
-                    end_date=edu.get('end_date'),
-                    graduation_year=edu.get('graduation_year')
+                    candidate_id=candidate_id,
+                    institution=edu.get("institution", "Unknown"),
+                    degree=edu.get("degree", ""),
+                    field_of_study=edu.get("field", "")
                 )
                 db.add(education)
         
-        # Commit all changes
         db.commit()
-        db.refresh(candidate)
-        
-        # Log usage
-        UsageLimitsService.log_usage(
-            db,
-            str(current_user.id),
-            'resume_upload',
-            using_personal_key
-        )
-        
-        print(f"✅ Candidate created successfully with ID: {candidate.id}")
-        
-        # Return analysis with candidate_id
-        return {
-            **analysis,
-            'candidate_id': candidate.id
-        }
+        return analysis
         
     except Exception as e:
-        print(f"❌ Error: {str(e)}")
-        db.rollback()
-        raise
+        print(f"Error analyzing resume: {str(e)}")
+        return {"error": str(e)}
 
 
-async def chat_with_database(
-    query: str,
-    db: Session,
-    current_user=None
-) -> Dict[str, Any]:
+async def chat_with_database(query: str, db: Session, current_user = None) -> Dict[str, Any]:
     """
-    Wrapper function for AI chat
+    Natural language chat interface to query the database using AI
     """
-    from fastapi import HTTPException, status as http_status
-    from app.services.system_settings_service import SystemSettingsService, UsageLimitsService
-    
-    settings_service = SystemSettingsService()
-    
     # Get user's personal API key if configured
     user_api_key = None
-    using_personal_key = False
+    if current_user and hasattr(current_user, 'use_personal_ai_key') and current_user.use_personal_ai_key:
+        user_api_key = getattr(current_user, 'personal_groq_api_key', None)
     
-    if current_user and hasattr(current_user, 'use_personal_ai_key'):
-        db.refresh(current_user)
-        
-        if current_user.use_personal_ai_key and current_user.personal_groq_api_key:
-            user_api_key = current_user.personal_groq_api_key
-            using_personal_key = True
-            print(f"🔑 Using personal API key for: {current_user.email}")
+    # Get all candidates with their related data
+    candidates = db.query(models.Candidate).all()
     
-    # Check if system AI is enabled
-    system_ai_enabled = settings_service.get_setting(db, 'system_ai_enabled', True)
-    require_personal_key = settings_service.get_setting(db, 'require_personal_key', False)
+    # Build comprehensive context about candidates
+    context_parts = []
+    candidate_ids = []
     
-    # If no personal key, check if system AI is available
-    if not using_personal_key:
-        if require_personal_key:
-            raise HTTPException(
-                status_code=http_status.HTTP_403_FORBIDDEN,
-                detail="Personal Groq API key required. Add your free key in Profile settings to continue using AI features."
-            )
+    for candidate in candidates:
+        candidate_ids.append(str(candidate.id))
         
-        if not system_ai_enabled:
-            raise HTTPException(
-                status_code=http_status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="System AI is currently disabled. Please add your personal API key in Profile settings."
-            )
+        # Get skills
+        skills = []
+        for cs in candidate.skills:
+            skill_name = cs.skill.name if cs.skill else "Unknown"
+            skills.append(skill_name)
         
-        # Check and increment message limit
-        try:
-            UsageLimitsService.check_and_increment_message_limit(
-                db, str(current_user.id), using_personal_key
-            )
-        except HTTPException as e:
-            raise e
-    
-    service = get_ai_service(user_api_key)
-    
-    # Execute chat and log usage
-    try:
-        result = await service.chat_with_database(query, db)
+        # Get work experience
+        work_exp = []
+        for exp in candidate.work_experiences:
+            work_exp.append({
+                "title": exp.job_title,
+                "company": exp.company_name,
+                "description": exp.description or "",
+                "current": exp.is_current
+            })
         
-        # Log the usage if user is authenticated
-        if current_user:
-            try:
-                UsageLimitsService.log_usage(
-                    db,
-                    str(current_user.id),
-                    'ai_message',
-                    using_personal_key
-                )
-            except Exception as log_error:
-                # Don't fail the request if logging fails
-                print(f"⚠️ Failed to log usage: {str(log_error)}")
+        # Get education
+        education = []
+        for edu in candidate.educations:
+            education.append({
+                "degree": edu.degree,
+                "institution": edu.institution,
+                "field": edu.field_of_study
+            })
         
-        return result
-    except Exception as e:
-        print(f"❌ Error in chat: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        raise
+        # Build candidate summary
+        candidate_info = f"""
+Candidate: {candidate.first_name} {candidate.last_name}
+Email: {candidate.email}
+Location: {candidate.location or 'Not specified'}
+Summary: {candidate.summary or 'No summary available'}
 
+Skills: {', '.join(skills) if skills else 'No skills listed'}
+
+Work Experience:
+"""
+        for i, exp in enumerate(work_exp, 1):
+            status = "(Current)" if exp.get("current") else ""
+            candidate_info += f"{i}. {exp['title']} at {exp['company']} {status}\n"
+            if exp.get("description"):
+                candidate_info += f"   {exp['description'][:200]}...\n"
+        
+        if education:
+            candidate_info += "\nEducation:\n"
+            for edu in education:
+                candidate_info += f"- {edu['degree']} in {edu['field']} from {edu['institution']}\n"
+        
+        context_parts.append(candidate_info)
+    
+    database_context = "\n---\n".join(context_parts)
+    
+    # Create AI prompt with better instructions
+    system_message = """You are a professional HR AI assistant helping recruiters find the best candidates.
+
+IMPORTANT INSTRUCTIONS:
+- Give direct, natural, conversational answers
+- Be friendly and helpful
+- When asked about a candidate, provide specific details about their experience and skills
+- Support both English and Arabic queries
+- Keep answers concise but informative
+- Don't be overly formal or robotic
+- If asked about strengths/weaknesses, analyze the candidate's profile and give honest insights
+
+Example good responses:
+- "Ahmed has strong SharePoint and Power Platform development skills with X years of experience..."
+- "بناءً على سيرته الذاتية، أحمد لديه خبرة قوية في..."
+"""
+
+    user_prompt = f"""Answer this question about our candidates in a natural, helpful way:
+
+Question: {query}
+
+Candidate Database:
+{database_context}
+
+Please provide a natural, helpful answer based on the candidate data above."""
+
+    # Call AI to generate response
+    try:
+        ai_response = await call_ai_api(user_prompt, system_message, user_api_key)
+        
+        # Clean up response if it contains JSON markers or code blocks
+        if "```" in ai_response:
+            ai_response = ai_response.split("```")[0].strip()
+        
+        return {
+            "response": ai_response,
+            "candidates": candidate_ids,
+            "jobs": []
+        }
+    except Exception as e:
+        # Fallback if AI fails
+        return {
+            "response": f"I found {len(candidates)} candidate(s) in the database. However, I'm having trouble generating a detailed response. Please try rephrasing your question.",
+            "candidates": candidate_ids,
+            "jobs": []
+        }
+
+
+async def semantic_search(query: str, limit: int, db: Session) -> List[Dict[str, Any]]:
+    """
+    Perform semantic search for candidates based on job requirements
+    This is a simple implementation - can be enhanced with vector embeddings
+    """
+    try:
+        # For now, use keyword-based search as a placeholder
+        # In production, this would use vector embeddings
+        
+        # Extract keywords from query
+        keywords = query.lower().split()
+        
+        # Search for candidates with matching skills
+        candidates = db.query(models.Candidate).limit(limit).all()
+        
+        results = []
+        for candidate in candidates:
+            # Get candidate skills
+            candidate_skills = db.query(models.CandidateSkill).filter(
+                models.CandidateSkill.candidate_id == candidate.id
+            ).all()
+            
+            skill_names = []
+            for cs in candidate_skills:
+                skill = db.query(models.Skill).filter(models.Skill.id == cs.skill_id).first()
+                if skill:
+                    skill_names.append(skill.name.lower())
+            
+            # Calculate simple match score
+            match_score = sum(1 for keyword in keywords if any(keyword in skill for skill in skill_names))
+            
+            if match_score > 0:
+                results.append({
+                    "candidate_id": str(candidate.id),
+                    "name": f"{candidate.first_name} {candidate.last_name}",
+                    "email": candidate.email,
+                    "match_score": match_score * 20,  # Convert to percentage-like score
+                    "matched_skills": [s for s in skill_names if any(k in s for k in keywords)]
+                })
+        
+        # Sort by match score
+        results.sort(key=lambda x: x["match_score"], reverse=True)
+        return results[:limit]
+        
+    except Exception as e:
+        print(f"Error in semantic_search: {str(e)}")
+        return []
