@@ -439,8 +439,17 @@ Example good responses:
     if conversation_history:
         conversation_context = "\n\nPREVIOUS CONVERSATION:\n"
         for msg in conversation_history[-6:]:  # Include last 6 messages (3 exchanges) for context
-            role = "User" if msg.get("role") == "user" else "Assistant"
-            conversation_context += f"{role}: {msg.get('content')}\n"
+            # Handle both Pydantic objects and dictionaries
+            if hasattr(msg, 'role'):
+                # Pydantic ChatMessage object
+                role = "User" if msg.role == "user" else "Assistant"
+                content = msg.content
+            else:
+                # Dictionary
+                role = "User" if msg.get("role") == "user" else "Assistant"
+                content = msg.get('content')
+            
+            conversation_context += f"{role}: {content}\n"
         conversation_context += "\n"
 
     user_prompt = f"""Answer this question about our candidates in a natural, helpful way:
