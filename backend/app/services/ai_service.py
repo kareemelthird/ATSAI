@@ -178,10 +178,21 @@ async def analyze_resume(text: str, candidate_id: str, db: Session, current_user
     system_message = """You are an expert HR assistant that analyzes resumes. 
 Extract the following information from the resume text and return it as JSON:
 
-IMPORTANT: For skills, each skill MUST have a "name" field with the actual skill name.
+IMPORTANT: 
+- Extract full name, email, phone from the resume
+- For skills, each skill MUST have a "name" field with the actual skill name.
 
 Example format:
 {
+  "first_name": "John",
+  "last_name": "Doe",
+  "email": "john.doe@email.com",
+  "phone": "+1234567890",
+  "location": "City, Country",
+  "linkedin": "linkedin.com/in/johndoe",
+  "github": "github.com/johndoe",
+  "portfolio": "johndoe.com",
+  "summary": "Professional summary of the candidate",
   "skills": [
     {"name": "Python", "category": "technical"},
     {"name": "JavaScript", "category": "technical"},
@@ -192,8 +203,7 @@ Example format:
   ],
   "education": [
     {"institution": "University", "degree": "Bachelor", "field": "Computer Science"}
-  ],
-  "summary": "Professional summary of the candidate"
+  ]
 }
 
 Return ONLY valid JSON, no additional text."""
@@ -219,6 +229,29 @@ Return the analysis as JSON."""
         json_text = json_text.strip()
         
         analysis = json.loads(json_text)
+        
+        # Create candidate if candidate_id is None (new resume upload)
+        if candidate_id is None:
+            # Extract name from analysis or use "Unknown"
+            first_name = analysis.get("first_name", "Unknown")
+            last_name = analysis.get("last_name", "")
+            email = analysis.get("email", f"temp_{datetime.utcnow().timestamp()}@temp.com")
+            
+            # Create candidate
+            candidate = models.Candidate(
+                first_name=first_name,
+                last_name=last_name,
+                email=email,
+                phone=analysis.get("phone"),
+                current_location=analysis.get("location"),
+                professional_summary=analysis.get("summary"),
+                linkedin_url=analysis.get("linkedin"),
+                github_url=analysis.get("github"),
+                portfolio_url=analysis.get("portfolio")
+            )
+            db.add(candidate)
+            db.flush()  # Get the ID
+            candidate_id = candidate.id
         
         # Store extracted skills in database
         if "skills" in analysis:
@@ -268,6 +301,9 @@ Return the analysis as JSON."""
                 db.add(education)
         
         db.commit()
+        
+        # Return analysis with candidate_id
+        analysis['candidate_id'] = str(candidate_id)
         return analysis
         
     except Exception as e:
