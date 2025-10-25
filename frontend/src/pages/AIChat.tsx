@@ -61,7 +61,15 @@ const AIChat = () => {
   })
 
   const chatMutation = useMutation({
-    mutationFn: (queryText: string) => aiApi.chat(queryText),
+    mutationFn: (queryText: string) => {
+      // Prepare conversation history (exclude candidates from history to keep it lightweight)
+      const history = messages.map(msg => ({
+        role: msg.role,
+        content: msg.content
+      }))
+      
+      return aiApi.chat(queryText, history)
+    },
     onSuccess: (data) => {
       setMessages((prev) => [
         ...prev,
