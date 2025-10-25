@@ -212,23 +212,14 @@ Return the analysis as JSON."""
                 skill_name = skill_data.get("name") if isinstance(skill_data, dict) else skill_data
                 category = skill_data.get("category", "technical") if isinstance(skill_data, dict) else "technical"
                 
-                # Get or create skill
-                skill = db.query(models.Skill).filter(
-                    models.Skill.name == skill_name
-                ).first()
-                
-                if not skill:
-                    skill = models.Skill(name=skill_name, category=category)
-                    db.add(skill)
-                    db.flush()
-                
-                # Link to candidate
-                candidate_skill = models.CandidateSkill(
+                # Create skill directly linked to candidate
+                skill = models.Skill(
                     candidate_id=candidate_id,
-                    skill_id=skill.id,
-                    source="AI-extracted"
+                    skill_name=skill_name,
+                    skill_category=category,
+                    proficiency_level=skill_data.get("level") if isinstance(skill_data, dict) else None
                 )
-                db.add(candidate_skill)
+                db.add(skill)
         
         # Store work experience
         if "work_experience" in analysis:
@@ -282,8 +273,8 @@ async def chat_with_database(query: str, db: Session, current_user = None) -> Di
         
         # Get skills
         skills = []
-        for cs in candidate.skills:
-            skill_name = cs.skill.name if cs.skill else "Unknown"
+        for skill in candidate.skills:
+            skill_name = skill.skill_name if skill.skill_name else "Unknown"
             skills.append(skill_name)
         
         # Get work experience
@@ -396,16 +387,11 @@ async def semantic_search(query: str, limit: int, db: Session) -> List[Dict[str,
         
         results = []
         for candidate in candidates:
-            # Get candidate skills
-            candidate_skills = db.query(models.CandidateSkill).filter(
-                models.CandidateSkill.candidate_id == candidate.id
-            ).all()
-            
+            # Get candidate skills directly (no CandidateSkill table)
             skill_names = []
-            for cs in candidate_skills:
-                skill = db.query(models.Skill).filter(models.Skill.id == cs.skill_id).first()
-                if skill:
-                    skill_names.append(skill.name.lower())
+            for skill in candidate.skills:
+                if skill.skill_name:
+                    skill_names.append(skill.skill_name.lower())
             
             # Calculate simple match score
             match_score = sum(1 for keyword in keywords if any(keyword in skill for skill in skill_names))
