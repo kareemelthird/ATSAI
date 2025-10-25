@@ -176,13 +176,27 @@ async def analyze_resume(text: str, candidate_id: str, db: Session, current_user
         user_api_key = getattr(current_user, 'personal_groq_api_key', None)
     
     system_message = """You are an expert HR assistant that analyzes resumes. 
-    Extract the following information from the resume text and return it as JSON:
-    - skills (array of skill names with categories)
-    - work_experience (array of jobs with company, title, dates, description)
-    - education (array of degrees with institution, degree, field, dates)
-    - summary (brief professional summary)
-    
-    Return ONLY valid JSON, no additional text."""
+Extract the following information from the resume text and return it as JSON:
+
+IMPORTANT: For skills, each skill MUST have a "name" field with the actual skill name.
+
+Example format:
+{
+  "skills": [
+    {"name": "Python", "category": "technical"},
+    {"name": "JavaScript", "category": "technical"},
+    {"name": "Communication", "category": "soft"}
+  ],
+  "work_experience": [
+    {"company": "Company Name", "title": "Job Title", "description": "What they did", "is_current": false}
+  ],
+  "education": [
+    {"institution": "University", "degree": "Bachelor", "field": "Computer Science"}
+  ],
+  "summary": "Professional summary of the candidate"
+}
+
+Return ONLY valid JSON, no additional text."""
     
     prompt = f"""Analyze this resume and extract structured information:
 
@@ -209,13 +223,22 @@ Return the analysis as JSON."""
         # Store extracted skills in database
         if "skills" in analysis:
             for skill_data in analysis["skills"]:
-                skill_name = skill_data.get("name") if isinstance(skill_data, dict) else skill_data
-                category = skill_data.get("category", "technical") if isinstance(skill_data, dict) else "technical"
+                # Extract skill name - handle both dict and string formats
+                if isinstance(skill_data, dict):
+                    skill_name = skill_data.get("name") or skill_data.get("skill_name") or skill_data.get("skill")
+                    category = skill_data.get("category", "technical")
+                else:
+                    skill_name = skill_data
+                    category = "technical"
+                
+                # Skip if no skill name
+                if not skill_name or skill_name.strip() == "":
+                    continue
                 
                 # Create skill directly linked to candidate
                 skill = models.Skill(
                     candidate_id=candidate_id,
-                    skill_name=skill_name,
+                    skill_name=skill_name.strip(),
                     skill_category=category,
                     proficiency_level=skill_data.get("level") if isinstance(skill_data, dict) else None
                 )
