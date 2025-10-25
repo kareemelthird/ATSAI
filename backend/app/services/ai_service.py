@@ -419,7 +419,7 @@ IMPORTANT INSTRUCTIONS:
 - ALWAYS use the exact names and information from the candidate profiles below
 - Be friendly and helpful
 - When comparing candidates, provide specific details about BOTH candidates' experience and skills
-- Support both English and Arabic queries
+- Support both English and Arabic queries - Use ONLY proper Arabic or English characters
 - Keep answers concise but informative
 - Don't be overly formal or robotic
 - If asked about strengths/weaknesses, analyze the candidate's profile and give honest insights based on their CV
@@ -427,6 +427,8 @@ IMPORTANT INSTRUCTIONS:
 - NEVER say you don't have information if the candidate data is provided below
 - MAINTAIN CONVERSATION CONTEXT: If the user asks follow-up questions like "why?", "tell me more", or "what about him?", refer to the previous conversation to understand what they're asking about
 - When user asks "لماذا؟" (why?) or similar, explain your previous recommendation with specific details from the candidate's profile
+- DO NOT use mixed scripts or corrupted characters - stick to either Arabic (العربية) or English only
+- Write company names in English even when responding in Arabic
 
 Example good responses:
 - "Ahmed has strong SharePoint and Power Platform development skills with X years of experience..."
@@ -474,16 +476,33 @@ IMPORTANT:
         if "```" in ai_response:
             ai_response = ai_response.split("```")[0].strip()
         
+        # Parse response to find which candidates were actually mentioned
+        mentioned_candidate_ids = []
+        response_lower = ai_response.lower()
+        
+        for candidate in candidates:
+            full_name = f"{candidate.first_name} {candidate.last_name}".lower()
+            first_name = candidate.first_name.lower()
+            last_name = candidate.last_name.lower()
+            
+            # Check if candidate name appears in the response
+            if (full_name in response_lower or 
+                first_name in response_lower or 
+                last_name in response_lower):
+                mentioned_candidate_ids.append(str(candidate.id))
+        
+        # If no candidates were explicitly mentioned, return empty list
+        # This prevents showing unrelated CV download buttons
         return {
             "response": ai_response,
-            "candidates": candidate_ids,
+            "candidates": mentioned_candidate_ids,
             "jobs": []
         }
     except Exception as e:
         # Fallback if AI fails
         return {
             "response": f"I found {len(candidates)} candidate(s) in the database. However, I'm having trouble generating a detailed response. Please try rephrasing your question.",
-            "candidates": candidate_ids,
+            "candidates": [],  # Don't show candidates on error
             "jobs": []
         }
 
