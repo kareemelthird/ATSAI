@@ -228,7 +228,7 @@ Return the analysis as JSON."""
                     candidate_id=candidate_id,
                     company_name=exp.get("company", "Unknown"),
                     job_title=exp.get("title", "Unknown"),
-                    description=exp.get("description", ""),
+                    responsibilities=exp.get("description", ""),
                     is_current=exp.get("is_current", False)
                 )
                 db.add(work_exp)
@@ -283,7 +283,7 @@ async def chat_with_database(query: str, db: Session, current_user = None) -> Di
             work_exp.append({
                 "title": exp.job_title,
                 "company": exp.company_name,
-                "description": exp.description or "",
+                "description": exp.responsibilities or "",
                 "current": exp.is_current
             })
         
@@ -300,8 +300,8 @@ async def chat_with_database(query: str, db: Session, current_user = None) -> Di
         candidate_info = f"""
 Candidate: {candidate.first_name} {candidate.last_name}
 Email: {candidate.email}
-Location: {candidate.location or 'Not specified'}
-Summary: {candidate.summary or 'No summary available'}
+Location: {candidate.current_location or 'Not specified'}
+Summary: {candidate.professional_summary or 'No summary available'}
 
 Skills: {', '.join(skills) if skills else 'No skills listed'}
 
