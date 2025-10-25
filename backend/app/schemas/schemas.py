@@ -250,9 +250,16 @@ class ApplicationResponse(ApplicationBase):
 
 
 # AI Query Schemas
+class ChatMessage(BaseModel):
+    """Single message in conversation history"""
+    role: str  # 'user' or 'assistant'
+    content: str
+
+
 class AIQueryRequest(BaseModel):
     query_text: str
     user_id: Optional[str] = None
+    conversation_history: Optional[List[ChatMessage]] = []  # Previous messages for context
 
 
 class AIQueryResponse(BaseModel):

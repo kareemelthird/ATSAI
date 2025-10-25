@@ -311,9 +311,10 @@ Return the analysis as JSON."""
         return {"error": str(e)}
 
 
-async def chat_with_database(query: str, db: Session, current_user = None) -> Dict[str, Any]:
+async def chat_with_database(query: str, db: Session, current_user = None, conversation_history: list = None) -> Dict[str, Any]:
     """
     Natural language chat interface to query the database using AI
+    Supports conversation history for context-aware responses
     """
     # Get user's personal API key if configured
     user_api_key = None
@@ -424,6 +425,8 @@ IMPORTANT INSTRUCTIONS:
 - If asked about strengths/weaknesses, analyze the candidate's profile and give honest insights based on their CV
 - When asked "should I hire X?", provide a balanced assessment based on their qualifications
 - NEVER say you don't have information if the candidate data is provided below
+- MAINTAIN CONVERSATION CONTEXT: If the user asks follow-up questions like "why?", "tell me more", or "what about him?", refer to the previous conversation to understand what they're asking about
+- When user asks "لماذا؟" (why?) or similar, explain your previous recommendation with specific details from the candidate's profile
 
 Example good responses:
 - "Ahmed has strong SharePoint and Power Platform development skills with X years of experience..."
@@ -431,14 +434,28 @@ Example good responses:
 - "Comparing Adham and Ahmed: Adham specializes in..., while Ahmed focuses on..."
 """
 
-    user_prompt = f"""Answer this question about our candidates in a natural, helpful way:
+    # Build conversation context if history exists
+    conversation_context = ""
+    if conversation_history:
+        conversation_context = "\n\nPREVIOUS CONVERSATION:\n"
+        for msg in conversation_history[-6:]:  # Include last 6 messages (3 exchanges) for context
+            role = "User" if msg.get("role") == "user" else "Assistant"
+            conversation_context += f"{role}: {msg.get('content')}\n"
+        conversation_context += "\n"
 
-Question: {query}
+    user_prompt = f"""Answer this question about our candidates in a natural, helpful way:
+{conversation_context}
+Current Question: {query}
 
 CANDIDATE PROFILES:
 {database_context}
 
-IMPORTANT: The candidates listed above are the ONLY ones you should discuss. Use their exact names and details from their profiles. Provide a natural, helpful answer based on the candidate data above."""
+IMPORTANT: 
+- The candidates listed above are the ONLY ones you should discuss. 
+- Use their exact names and details from their profiles.
+- If the user asks follow-up questions (like "why?", "tell me more", "what about X?"), refer to the previous conversation context.
+- Maintain continuity with previous responses in the conversation.
+- Provide a natural, helpful answer based on the candidate data and conversation history above."""
 
     # Call AI to generate response
     try:

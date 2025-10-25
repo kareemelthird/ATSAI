@@ -35,9 +35,16 @@ async def chat_endpoint(
     try:
         print(f"📥 Chat request from user: {current_user.email}")
         print(f"📝 Query: {request.query_text}")
+        if request.conversation_history:
+            print(f"💬 Conversation history: {len(request.conversation_history)} messages")
         
         # Process the query with AI using user's personal API key if configured
-        response_data = await chat_with_database(request.query_text, db, current_user)
+        response_data = await chat_with_database(
+            request.query_text, 
+            db, 
+            current_user,
+            conversation_history=request.conversation_history
+        )
         
         print(f"✅ Chat response generated")
         
