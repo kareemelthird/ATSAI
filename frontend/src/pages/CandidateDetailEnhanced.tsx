@@ -9,6 +9,8 @@ import {
 } from 'lucide-react'
 import { useState } from 'react'
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
 type TabType = 'overview' | 'skills' | 'experience' | 'education' | 'projects' | 'certifications' | 'resumes' | 'analytics'
 
 const CandidateDetailEnhanced = () => {
@@ -44,7 +46,7 @@ const CandidateDetailEnhanced = () => {
   }
 
   const handleDownloadResume = (candidateId: string) => {
-    const downloadUrl = `http://localhost:8000/api/v1/candidates/${candidateId}/resume/download`
+    const downloadUrl = `${API_BASE_URL}/api/v1/candidates/${candidateId}/resume/download`
     window.open(downloadUrl, '_blank')
   }
 

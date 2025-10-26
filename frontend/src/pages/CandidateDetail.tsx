@@ -4,6 +4,8 @@ import { candidateApi, resumeApi } from '@/lib/api'
 import { Mail, Phone, MapPin, Linkedin, Github, Globe, Download, Trash2, FileText, Calendar, CheckCircle, Clock, XCircle, ArrowLeft, ExternalLink, Eye } from 'lucide-react'
 import { useState } from 'react'
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
 const CandidateDetail = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -39,7 +41,7 @@ const CandidateDetail = () => {
   }
 
   const handleDownloadResume = (candidateId: string, filename: string) => {
-    const downloadUrl = `http://localhost:8000/api/v1/candidates/${candidateId}/resume/download`
+    const downloadUrl = `${API_BASE_URL}/api/v1/candidates/${candidateId}/resume/download`
     window.open(downloadUrl, '_blank')
   }
 

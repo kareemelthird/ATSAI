@@ -4,6 +4,8 @@ import { aiApi, api } from '@/lib/api'
 import { Send, Bot, Download, User, Trash2, AlertTriangle } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
 interface CandidateInfo {
   id: string
   name: string
@@ -278,7 +280,7 @@ const AIChat = () => {
                                 {msg.candidates.map((candidate) => (
                                   <a
                                     key={candidate.id}
-                                    href={`http://localhost:8000/api/v1/candidates/${candidate.id}/resume/download`}
+                                    href={`${API_BASE_URL}/api/v1/candidates/${candidate.id}/resume/download`}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     download

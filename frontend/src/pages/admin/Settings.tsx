@@ -2,7 +2,8 @@ import { Settings as SettingsIcon, Save, Check, X, Loader, AlertCircle, TestTube
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 
-const API_URL = 'http://localhost:8000/api/v1';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_URL = `${API_BASE_URL}/api/v1`;
 
 interface Setting {
   category: string;

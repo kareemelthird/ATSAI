@@ -8,6 +8,8 @@ import {
 } from 'lucide-react'
 import { 
   BarChart, Bar, PieChart, Pie, Cell, LineChart, Line,
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
   AreaChart, Area
@@ -26,7 +28,7 @@ const CandidateDetailNew = () => {
   })
 
   const handleDownloadResume = (candidateId: string) => {
-    const downloadUrl = `http://localhost:8000/api/v1/candidates/${candidateId}/resume/download`
+    const downloadUrl = `${API_BASE_URL}/api/v1/candidates/${candidateId}/resume/download`
     window.open(downloadUrl, '_blank')
   }
 
