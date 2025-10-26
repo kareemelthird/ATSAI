@@ -278,39 +278,6 @@ IMPORTANT:
 - If a field is not found, omit it (don't use null or empty strings)
 
 Return ONLY valid JSON, no additional text or markdown formatting."""
-  "education": [
-    {
-      "institution": "University", 
-      "degree": "Bachelor", 
-      "field": "Computer Science",
-      "start_date": "YYYY",
-      "graduation_date": "YYYY-MM or YYYY"
-    }
-  ],
-  "projects": [
-    {
-      "title": "Project Name",
-      "description": "Project description",
-      "technologies": ["Tech1", "Tech2"]
-    }
-  ],
-  "certifications": [
-    {
-      "name": "Certification Name",
-      "issuing_organization": "Organization",
-      "issue_date": "YYYY-MM or YYYY"
-    }
-  ]
-}
-
-CRITICAL INSTRUCTIONS:
-- For work_experience: ALWAYS extract start_date and end_date from the resume
-- Date format: Use "YYYY-MM" (e.g., "2020-01") or just "YYYY" if only year is available
-- If end_date is not available and position is current, use "Present" and set is_current to true
-- Extract ALL employment history, not just the most recent
-- For education: Extract start_date and graduation_date if available
-
-Return ONLY valid JSON, no additional text."""
     
     prompt = f"""Analyze this resume and extract structured information:
 
