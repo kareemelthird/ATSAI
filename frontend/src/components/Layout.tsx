@@ -4,6 +4,8 @@ import { useAuth } from '../contexts/AuthContext'
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
 const Layout = () => {
   const location = useLocation()
   const { user, isAdmin, logout } = useAuth()
@@ -14,7 +16,7 @@ const Layout = () => {
     // Fetch project info from backend
     const fetchProjectInfo = async () => {
       try {
-        const response = await axios.get('http://localhost:8000/api/v1/settings/public/project-info', {
+        const response = await axios.get(`${API_BASE_URL}/api/v1/settings/public/project-info`, {
           timeout: 5000 // 5 second timeout
         })
         const name = response.data.project_name || 'ATS/AI'

@@ -2,6 +2,8 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
 interface User {
   id: string;
   email: string;
@@ -41,7 +43,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         // Verify token is still valid by fetching profile
         axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-        const response = await axios.get('http://localhost:8000/api/v1/auth/me');
+        const response = await axios.get(`${API_BASE_URL}/api/v1/auth/me`);
         setUser(response.data);
       } catch (error) {
         // Token invalid, clear storage
@@ -58,7 +60,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const login = async (email: string, password: string) => {
-    const response = await axios.post('http://localhost:8000/api/v1/auth/login', {
+    const response = await axios.post(`${API_BASE_URL}/api/v1/auth/login`, {
       email,
       password
     });
@@ -78,7 +80,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     try {
-      await axios.post('http://localhost:8000/api/v1/auth/logout');
+      await axios.post(`${API_BASE_URL}/api/v1/auth/logout`);
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
