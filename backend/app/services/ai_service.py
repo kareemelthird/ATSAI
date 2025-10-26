@@ -175,36 +175,140 @@ async def analyze_resume(text: str, candidate_id: str, db: Session, current_user
     if current_user and hasattr(current_user, 'use_personal_ai_key') and current_user.use_personal_ai_key:
         user_api_key = getattr(current_user, 'personal_groq_api_key', None)
     
-    system_message = """You are an expert HR assistant that analyzes resumes. 
-Extract the following information from the resume text and return it as JSON:
+    system_message = """You are an expert HR assistant and resume analyst. 
+Extract comprehensive information from the resume text and return it as detailed JSON.
 
-IMPORTANT: 
-- Extract full name, email, phone from the resume
-- For skills, each skill MUST have a "name" field with the actual skill name.
+CRITICAL EXTRACTION RULES:
+1. Extract COMPLETE names (first, middle, last) - don't truncate
+2. Extract FULL email addresses and phone numbers with country codes if present
+3. For work experience: Extract ALL positions, with accurate dates and detailed descriptions
+4. For skills: Categorize as technical, soft, or domain-specific
+5. For education: Include ALL degrees, certifications, and courses
+6. Extract projects with technologies used
+7. Extract languages with proficiency levels if mentioned
 
-Example format:
+Output JSON format:
 {
   "first_name": "John",
-  "last_name": "Doe",
+  "last_name": "Doe Smith",
   "email": "john.doe@email.com",
-  "phone": "+1234567890",
-  "location": "City, Country",
+  "phone": "+1-234-567-8900",
+  "location": "City, State, Country",
   "linkedin": "linkedin.com/in/johndoe",
   "github": "github.com/johndoe",
   "portfolio": "johndoe.com",
-  "summary": "Professional summary of the candidate",
+  "summary": "Comprehensive professional summary highlighting key achievements, years of experience, and areas of expertise. Make this 2-3 sentences.",
+  
   "skills": [
-    {"name": "Python", "category": "technical"},
-    {"name": "JavaScript", "category": "technical"},
-    {"name": "Communication", "category": "soft"}
+    {"name": "Python", "category": "technical", "level": "Expert"},
+    {"name": "JavaScript", "category": "technical", "level": "Advanced"},
+    {"name": "Project Management", "category": "soft", "level": "Intermediate"},
+    {"name": "Healthcare Domain", "category": "domain"}
   ],
+  
   "work_experience": [
-    {"company": "Company Name", "title": "Job Title", "description": "What they did", "is_current": false}
+    {
+      "company": "Company Name Inc.", 
+      "title": "Senior Software Engineer", 
+      "start_date": "2020-01",
+      "end_date": "2024-06",
+      "description": "Led development of microservices architecture. Mentored 5 junior developers. Improved system performance by 40%.",
+      "is_current": false,
+      "location": "City, Country",
+      "achievements": ["Achievement 1", "Achievement 2"]
+    }
   ],
+  
   "education": [
-    {"institution": "University", "degree": "Bachelor", "field": "Computer Science"}
+    {
+      "institution": "University Name",
+      "degree": "Bachelor of Science",
+      "field": "Computer Science",
+      "start_date": "2015",
+      "graduation_date": "2019-06",
+      "grade": "3.8 GPA",
+      "achievements": ["Dean's List", "Honor Society"]
+    }
+  ],
+  
+  "projects": [
+    {
+      "title": "E-commerce Platform",
+      "description": "Built scalable e-commerce platform serving 100K+ users",
+      "technologies": ["React", "Node.js", "PostgreSQL", "AWS"],
+      "url": "github.com/user/project",
+      "role": "Lead Developer",
+      "date": "2023"
+    }
+  ],
+  
+  "certifications": [
+    {
+      "name": "AWS Certified Solutions Architect",
+      "issuing_organization": "Amazon Web Services",
+      "issue_date": "2023-06",
+      "expiry_date": "2026-06",
+      "credential_id": "ABC123"
+    }
+  ],
+  
+  "languages": [
+    {
+      "name": "English",
+      "proficiency": "Native"
+    },
+    {
+      "name": "Spanish", 
+      "proficiency": "Professional"
+    }
   ]
 }
+
+CRITICAL INSTRUCTIONS FOR DATES:
+- Always extract start_date and end_date for work experience
+- Use format "YYYY-MM" (e.g., "2020-01") or "YYYY" if only year available
+- For current positions: end_date = "Present" and is_current = true
+- For education: Extract graduation_date (when they completed) and start_date if available
+- For certifications: Extract issue_date and expiry_date if available
+
+IMPORTANT:
+- Be thorough - extract ALL information present in the resume
+- For work experience descriptions: Include key responsibilities AND achievements
+- Don't make up information - only extract what's actually in the resume
+- If a field is not found, omit it (don't use null or empty strings)
+
+Return ONLY valid JSON, no additional text or markdown formatting."""
+  "education": [
+    {
+      "institution": "University", 
+      "degree": "Bachelor", 
+      "field": "Computer Science",
+      "start_date": "YYYY",
+      "graduation_date": "YYYY-MM or YYYY"
+    }
+  ],
+  "projects": [
+    {
+      "title": "Project Name",
+      "description": "Project description",
+      "technologies": ["Tech1", "Tech2"]
+    }
+  ],
+  "certifications": [
+    {
+      "name": "Certification Name",
+      "issuing_organization": "Organization",
+      "issue_date": "YYYY-MM or YYYY"
+    }
+  ]
+}
+
+CRITICAL INSTRUCTIONS:
+- For work_experience: ALWAYS extract start_date and end_date from the resume
+- Date format: Use "YYYY-MM" (e.g., "2020-01") or just "YYYY" if only year is available
+- If end_date is not available and position is current, use "Present" and set is_current to true
+- Extract ALL employment history, not just the most recent
+- For education: Extract start_date and graduation_date if available
 
 Return ONLY valid JSON, no additional text."""
     
@@ -237,21 +341,60 @@ Return the analysis as JSON."""
             last_name = analysis.get("last_name", "")
             email = analysis.get("email", f"temp_{datetime.utcnow().timestamp()}@temp.com")
             
-            # Create candidate
-            candidate = models.Candidate(
-                first_name=first_name,
-                last_name=last_name,
-                email=email,
-                phone=analysis.get("phone"),
-                current_location=analysis.get("location"),
-                professional_summary=analysis.get("summary"),
-                linkedin_url=analysis.get("linkedin"),
-                github_url=analysis.get("github"),
-                portfolio_url=analysis.get("portfolio")
-            )
-            db.add(candidate)
-            db.flush()  # Get the ID
-            candidate_id = candidate.id
+            # Check if candidate already exists by email
+            existing_candidate = None
+            if email and not email.startswith("temp_"):
+                existing_candidate = db.query(models.Candidate).filter(models.Candidate.email == email).first()
+            
+            if existing_candidate:
+                # Update existing candidate with new information
+                print(f"📧 Found existing candidate with email {email}, updating...")
+                candidate_id = existing_candidate.id
+                
+                # Update candidate info with new data from resume
+                if first_name and first_name != "Unknown":
+                    existing_candidate.first_name = first_name
+                if last_name:
+                    existing_candidate.last_name = last_name
+                if analysis.get("phone"):
+                    existing_candidate.phone = analysis.get("phone")
+                if analysis.get("location"):
+                    existing_candidate.current_location = analysis.get("location")
+                if analysis.get("summary"):
+                    existing_candidate.professional_summary = analysis.get("summary")
+                if analysis.get("linkedin"):
+                    existing_candidate.linkedin_url = analysis.get("linkedin")
+                if analysis.get("github"):
+                    existing_candidate.github_url = analysis.get("github")
+                if analysis.get("portfolio"):
+                    existing_candidate.portfolio_url = analysis.get("portfolio")
+                
+                existing_candidate.updated_at = datetime.utcnow()
+                
+                # Delete old data to replace with fresh analysis
+                db.query(models.Skill).filter(models.Skill.candidate_id == candidate_id).delete()
+                db.query(models.WorkExperience).filter(models.WorkExperience.candidate_id == candidate_id).delete()
+                db.query(models.Education).filter(models.Education.candidate_id == candidate_id).delete()
+                db.query(models.Project).filter(models.Project.candidate_id == candidate_id).delete()
+                db.query(models.Certification).filter(models.Certification.candidate_id == candidate_id).delete()
+                
+            else:
+                # Create new candidate
+                print(f"✨ Creating new candidate: {first_name} {last_name}")
+                candidate = models.Candidate(
+                    first_name=first_name,
+                    last_name=last_name,
+                    email=email,
+                    phone=analysis.get("phone"),
+                    current_location=analysis.get("location"),
+                    professional_summary=analysis.get("summary"),
+                    linkedin_url=analysis.get("linkedin"),
+                    github_url=analysis.get("github"),
+                    portfolio_url=analysis.get("portfolio")
+                )
+                db.add(candidate)
+                db.flush()  # Get the ID
+                candidate_id = candidate.id
         
         # Store extracted skills in database
         if "skills" in analysis:
@@ -280,25 +423,145 @@ Return the analysis as JSON."""
         # Store work experience
         if "work_experience" in analysis:
             for exp in analysis["work_experience"]:
+                # Parse dates - handle various formats
+                start_date = None
+                end_date = None
+                
+                # Parse start_date
+                if exp.get("start_date"):
+                    try:
+                        start_str = str(exp.get("start_date")).strip()
+                        if len(start_str) == 4:  # Just year
+                            start_date = datetime.strptime(f"{start_str}-01-01", "%Y-%m-%d").date()
+                        elif len(start_str) == 7:  # YYYY-MM
+                            start_date = datetime.strptime(f"{start_str}-01", "%Y-%m-%d").date()
+                        else:  # Try full date
+                            start_date = datetime.strptime(start_str, "%Y-%m-%d").date()
+                    except (ValueError, AttributeError) as e:
+                        print(f"⚠️ Could not parse start_date: {exp.get('start_date')} - {e}")
+                
+                # Parse end_date
+                if exp.get("end_date"):
+                    end_str = str(exp.get("end_date")).strip().lower()
+                    if end_str not in ["present", "current", "now"]:
+                        try:
+                            if len(end_str) == 4:  # Just year
+                                end_date = datetime.strptime(f"{end_str}-12-31", "%Y-%m-%d").date()
+                            elif len(end_str) == 7:  # YYYY-MM
+                                end_date = datetime.strptime(f"{end_str}-01", "%Y-%m-%d").date()
+                            else:  # Try full date
+                                end_date = datetime.strptime(end_str, "%Y-%m-%d").date()
+                        except (ValueError, AttributeError) as e:
+                            print(f"⚠️ Could not parse end_date: {exp.get('end_date')} - {e}")
+                
                 work_exp = models.WorkExperience(
                     candidate_id=candidate_id,
                     company_name=exp.get("company", "Unknown"),
                     job_title=exp.get("title", "Unknown"),
                     responsibilities=exp.get("description", ""),
-                    is_current=exp.get("is_current", False)
+                    start_date=start_date,
+                    end_date=end_date,
+                    is_current=exp.get("is_current", False),
+                    company_location=exp.get("location"),
+                    achievements=exp.get("achievements", []) if exp.get("achievements") else None
                 )
                 db.add(work_exp)
         
         # Store education
         if "education" in analysis:
             for edu in analysis["education"]:
+                # Parse graduation date
+                start_date = None
+                end_date = None
+                graduation_year = None
+                
+                # Parse start_date
+                if edu.get("start_date"):
+                    try:
+                        start_str = str(edu.get("start_date")).strip()
+                        if len(start_str) == 4:  # Just year
+                            start_date = datetime.strptime(f"{start_str}-01-01", "%Y-%m-%d").date()
+                        elif len(start_str) == 7:  # YYYY-MM
+                            start_date = datetime.strptime(f"{start_str}-01", "%Y-%m-%d").date()
+                        else:  # Try full date
+                            start_date = datetime.strptime(start_str, "%Y-%m-%d").date()
+                    except (ValueError, AttributeError) as e:
+                        print(f"⚠️ Could not parse education start_date: {edu.get('start_date')} - {e}")
+                
+                # Parse graduation_date / end_date
+                grad_date_str = edu.get("graduation_date") or edu.get("end_date")
+                if grad_date_str:
+                    try:
+                        grad_str = str(grad_date_str).strip()
+                        if len(grad_str) == 4:  # Just year
+                            graduation_year = int(grad_str)
+                            end_date = datetime.strptime(f"{grad_str}-06-30", "%Y-%m-%d").date()
+                        elif len(grad_str) == 7:  # YYYY-MM
+                            graduation_year = int(grad_str.split('-')[0])
+                            end_date = datetime.strptime(f"{grad_str}-01", "%Y-%m-%d").date()
+                        else:  # Try full date
+                            end_date = datetime.strptime(grad_str, "%Y-%m-%d").date()
+                            graduation_year = end_date.year
+                    except (ValueError, AttributeError) as e:
+                        print(f"⚠️ Could not parse graduation_date: {grad_date_str} - {e}")
+                
                 education = models.Education(
                     candidate_id=candidate_id,
                     institution=edu.get("institution", "Unknown"),
                     degree=edu.get("degree", ""),
-                    field_of_study=edu.get("field", "")
+                    field_of_study=edu.get("field", ""),
+                    start_date=start_date,
+                    end_date=end_date,
+                    graduation_year=graduation_year
                 )
                 db.add(education)
+        
+        # Store projects
+        if "projects" in analysis:
+            for proj in analysis["projects"]:
+                project = models.Project(
+                    candidate_id=candidate_id,
+                    title=proj.get("title", "Untitled Project"),
+                    description=proj.get("description", ""),
+                    technologies=proj.get("technologies", [])
+                )
+                db.add(project)
+        
+        # Store certifications
+        if "certifications" in analysis:
+            for cert in analysis["certifications"]:
+                # Parse issue date
+                issue_date = None
+                if cert.get("issue_date"):
+                    try:
+                        issue_str = str(cert.get("issue_date")).strip()
+                        if len(issue_str) == 4:  # Just year
+                            issue_date = datetime.strptime(f"{issue_str}-01-01", "%Y-%m-%d").date()
+                        elif len(issue_str) == 7:  # YYYY-MM
+                            issue_date = datetime.strptime(f"{issue_str}-01", "%Y-%m-%d").date()
+                        else:  # Try full date
+                            issue_date = datetime.strptime(issue_str, "%Y-%m-%d").date()
+                    except (ValueError, AttributeError) as e:
+                        print(f"⚠️ Could not parse cert issue_date: {cert.get('issue_date')} - {e}")
+                
+                certification = models.Certification(
+                    candidate_id=candidate_id,
+                    name=cert.get("name", ""),
+                    issuing_organization=cert.get("issuing_organization", ""),
+                    issue_date=issue_date,
+                    credential_id=cert.get("credential_id")
+                )
+                db.add(certification)
+        
+        # Store languages
+        if "languages" in analysis:
+            for lang in analysis["languages"]:
+                language = models.Language(
+                    candidate_id=candidate_id,
+                    language_name=lang.get("name", ""),
+                    proficiency_level=lang.get("proficiency", "")
+                )
+                db.add(language)
         
         db.commit()
         
