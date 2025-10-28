@@ -14,6 +14,7 @@ import Login from './pages/Login'
 import Profile from './pages/Profile'
 import AdminUsers from './pages/admin/Users'
 import AdminSettings from './pages/AdminSettings'
+import AISettings from './pages/admin/AISettings'
 
 function App() {
   return (
@@ -49,6 +50,11 @@ function App() {
             <Route path="admin/settings" element={
               <ProtectedRoute requireAdmin={true}>
                 <AdminSettings />
+              </ProtectedRoute>
+            } />
+            <Route path="admin/ai-settings" element={
+              <ProtectedRoute requireAdmin={true}>
+                <AISettings />
               </ProtectedRoute>
             } />
           </Route>

@@ -3,6 +3,7 @@ from typing import Dict, Any, List
 from app.core.config import settings
 from sqlalchemy.orm import Session
 from app.db import models
+from app.db.models_system_settings import SystemAISetting
 import json
 import re
 from datetime import datetime
@@ -166,6 +167,24 @@ async def call_ai_api(prompt: str, system_message: str = None, user_api_key: str
         raise
 
 
+def get_ai_setting(db: Session, setting_key: str, default_value: str = None) -> str:
+    """
+    Get AI setting from database, return default if not found
+    """
+    try:
+        setting = db.query(SystemAISetting).filter(
+            SystemAISetting.setting_key == setting_key,
+            SystemAISetting.is_active == True
+        ).first()
+        
+        if setting:
+            return setting.setting_value
+        return default_value
+    except Exception as e:
+        print(f"⚠️ Error fetching AI setting '{setting_key}': {e}")
+        return default_value
+
+
 async def analyze_resume(text: str, candidate_id: str, db: Session, current_user = None) -> Dict[str, Any]:
     """
     Analyze resume text using AI to extract structured information
@@ -175,7 +194,11 @@ async def analyze_resume(text: str, candidate_id: str, db: Session, current_user
     if current_user and hasattr(current_user, 'use_personal_ai_key') and current_user.use_personal_ai_key:
         user_api_key = getattr(current_user, 'personal_groq_api_key', None)
     
-    system_message = """You are an expert HR assistant and resume analyst. 
+    # Get system instructions from database (customizable by admin)
+    custom_instructions = get_ai_setting(
+        db, 
+        "resume_analysis_instructions",
+        default_value="""You are an expert HR assistant and resume analyst. 
 Extract comprehensive information from the resume text and return it as detailed JSON.
 
 CRITICAL EXTRACTION RULES:
@@ -185,9 +208,10 @@ CRITICAL EXTRACTION RULES:
 4. For skills: Categorize as technical, soft, or domain-specific
 5. For education: Include ALL degrees, certifications, and courses
 6. Extract projects with technologies used
-7. Extract languages with proficiency levels if mentioned
-
-Output JSON format:
+7. Extract languages with proficiency levels if mentioned"""
+    )
+    
+    system_message = custom_instructions + """
 {
   "first_name": "John",
   "last_name": "Doe Smith",
@@ -597,6 +621,7 @@ async def chat_with_database(query: str, db: Session, current_user = None, conve
     """
     Natural language chat interface to query the database using AI
     Supports conversation history for context-aware responses
+    Includes candidates, jobs, and applications context
     """
     # Get user's personal API key if configured
     user_api_key = None
@@ -693,31 +718,58 @@ Work Experience:
     
     database_context = "\n---\n".join(context_parts)
     
-    # Create AI prompt with better instructions
-    system_message = """You are a professional HR AI assistant helping recruiters find the best candidates.
+    # Add Jobs context if query mentions jobs/positions
+    jobs_context = ""
+    if any(word in query_lower for word in ['job', 'position', 'opening', 'vacancy', 'وظيفة', 'وظائف']):
+        jobs = db.query(models.Job).filter(models.Job.status == 'open').limit(20).all()
+        if jobs:
+            jobs_context = "\n\nAVAILABLE JOBS:\n"
+            for job in jobs:
+                jobs_context += f"""
+Job: {job.title}
+Location: {job.location or 'Remote'}
+Type: {job.employment_type or 'Full-time'}
+Required Skills: {', '.join(job.required_skills or [])}
+Experience: {job.experience_years_min or 0}-{job.experience_years_max or 10} years
+Salary: {job.salary_min}-{job.salary_max} {job.salary_currency or 'USD'}
+Description: {job.description[:200] if job.description else 'Not specified'}...
+---"""
+    
+    # Add Applications context if query mentions applications/candidates applying
+    applications_context = ""
+    if any(word in query_lower for word in ['application', 'applied', 'applying', 'candidate', 'تقديم', 'متقدم']):
+        applications = db.query(models.Application).limit(50).all()
+        if applications:
+            applications_context = "\n\nAPPLICATIONS STATUS:\n"
+            for app in applications:
+                candidate = db.query(models.Candidate).filter(models.Candidate.id == app.candidate_id).first()
+                job = db.query(models.Job).filter(models.Job.id == app.job_id).first()
+                if candidate and job:
+                    applications_context += f"""
+- {candidate.first_name} {candidate.last_name} applied for {job.title}
+  Status: {app.status}, Stage: {app.current_stage or 'Initial'}
+---"""
+    
+    # Get custom chat instructions from database
+    custom_instructions = get_ai_setting(
+        db,
+        "chat_system_instructions",
+        default_value="""You are a professional HR AI assistant helping recruiters find the best candidates.
 
 IMPORTANT INSTRUCTIONS:
 - Give direct, natural, conversational answers based ONLY on the candidate data provided
-- ALWAYS use the exact names and information from the candidate profiles below
+- ALWAYS use the exact names and information from the profiles below
 - Be friendly and helpful
-- When comparing candidates, provide specific details about BOTH candidates' experience and skills
-- Support both English and Arabic queries - Use ONLY proper Arabic or English characters
-- Keep answers concise but informative
-- Don't be overly formal or robotic
-- If asked about strengths/weaknesses, analyze the candidate's profile and give honest insights based on their CV
-- When asked "should I hire X?", provide a balanced assessment based on their qualifications
-- NEVER say you don't have information if the candidate data is provided below
-- MAINTAIN CONVERSATION CONTEXT: If the user asks follow-up questions like "why?", "tell me more", or "what about him?", refer to the previous conversation to understand what they're asking about
-- When user asks "لماذا؟" (why?) or similar, explain your previous recommendation with specific details from the candidate's profile
-- DO NOT use mixed scripts or corrupted characters - stick to either Arabic (العربية) or English only
-- Write company names in English even when responding in Arabic
-
-Example good responses:
-- "Ahmed has strong SharePoint and Power Platform development skills with X years of experience..."
-- "بناءً على سيرته الذاتية، أحمد لديه خبرة قوية في..."
-- "Comparing Adham and Ahmed: Adham specializes in..., while Ahmed focuses on..."
-"""
-
+- When comparing candidates, provide specific details
+- Support both English and Arabic queries
+- Keep answers concise but informative"""
+    )
+    
+    system_message = custom_instructions + """
+    
+CURRENT DATABASE CONTEXT:
+""" + database_context + jobs_context + applications_context
+    
     # Build conversation context if history exists
     conversation_context = ""
     if conversation_history:
