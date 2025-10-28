@@ -233,12 +233,14 @@ Output JSON format:
   
   "projects": [
     {
-      "title": "E-commerce Platform",
+      "name": "E-commerce Platform",
+      "type": "Professional",
       "description": "Built scalable e-commerce platform serving 100K+ users",
       "technologies": ["React", "Node.js", "PostgreSQL", "AWS"],
       "url": "github.com/user/project",
       "role": "Lead Developer",
-      "date": "2023"
+      "start_date": "2023-01",
+      "end_date": "2023-12"
     }
   ],
   
@@ -486,11 +488,45 @@ Return the analysis as JSON."""
         # Store projects
         if "projects" in analysis:
             for proj in analysis["projects"]:
+                # Parse project dates
+                start_date = None
+                end_date = None
+                
+                if proj.get("start_date"):
+                    try:
+                        start_str = str(proj.get("start_date")).strip()
+                        if len(start_str) == 4:  # Just year
+                            start_date = datetime.strptime(f"{start_str}-01-01", "%Y-%m-%d").date()
+                        elif len(start_str) == 7:  # YYYY-MM
+                            start_date = datetime.strptime(f"{start_str}-01", "%Y-%m-%d").date()
+                        else:
+                            start_date = datetime.strptime(start_str, "%Y-%m-%d").date()
+                    except (ValueError, AttributeError):
+                        start_date = None
+                
+                if proj.get("end_date"):
+                    try:
+                        end_str = str(proj.get("end_date")).strip()
+                        if end_str.lower() != "present":
+                            if len(end_str) == 4:
+                                end_date = datetime.strptime(f"{end_str}-01-01", "%Y-%m-%d").date()
+                            elif len(end_str) == 7:
+                                end_date = datetime.strptime(f"{end_str}-01", "%Y-%m-%d").date()
+                            else:
+                                end_date = datetime.strptime(end_str, "%Y-%m-%d").date()
+                    except (ValueError, AttributeError):
+                        end_date = None
+                
                 project = models.Project(
                     candidate_id=candidate_id,
-                    title=proj.get("title", "Untitled Project"),
+                    project_name=proj.get("name", "Untitled Project"),  # Use project_name instead of title
+                    project_type=proj.get("type", "Professional"),
                     description=proj.get("description", ""),
-                    technologies=proj.get("technologies", [])
+                    role=proj.get("role", ""),
+                    technologies_used=proj.get("technologies", []),  # Use technologies_used instead of technologies
+                    start_date=start_date,
+                    end_date=end_date,
+                    project_url=proj.get("url", "")
                 )
                 db.add(project)
         
