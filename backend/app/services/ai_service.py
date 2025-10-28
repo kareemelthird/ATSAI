@@ -185,6 +185,72 @@ def get_ai_setting(db: Session, setting_key: str, default_value: str = None) -> 
         return default_value
 
 
+def safe_extract_string(data: dict, key: str, default: str = "") -> str:
+    """
+    Safely extract a string value from dictionary, handling nulls and type mismatches
+    """
+    try:
+        value = data.get(key, default)
+        if value is None:
+            return default
+        if isinstance(value, list):
+            # If it's a list, take first non-empty item
+            value = next((str(v).strip() for v in value if v and str(v).strip()), default)
+        elif not isinstance(value, str):
+            value = str(value)
+        return value.strip() if value else default
+    except Exception as e:
+        print(f"⚠️ Error extracting '{key}': {e}")
+        return default
+
+
+def safe_extract_list(data: dict, key: str, default: list = None) -> list:
+    """
+    Safely extract a list value from dictionary, handling nulls and type mismatches
+    """
+    try:
+        value = data.get(key, default or [])
+        if value is None:
+            return default or []
+        if not isinstance(value, list):
+            # If it's a single value, wrap in list
+            return [value] if value else (default or [])
+        # Filter out None and empty values
+        return [v for v in value if v is not None and (not isinstance(v, str) or v.strip())]
+    except Exception as e:
+        print(f"⚠️ Error extracting list '{key}': {e}")
+        return default or []
+
+
+def safe_parse_date(date_value, field_name: str = "date") -> datetime.date:
+    """
+    Safely parse date from various formats, return None if invalid
+    """
+    if not date_value:
+        return None
+    
+    try:
+        date_str = safe_extract_string({"val": date_value}, "val", "")
+        if not date_str or date_str.lower() in ["present", "current", "now"]:
+            return None
+        
+        date_str = date_str.strip()
+        
+        # Try different date formats
+        if len(date_str) == 4:  # Just year (YYYY)
+            return datetime.strptime(f"{date_str}-01-01", "%Y-%m-%d").date()
+        elif len(date_str) == 7:  # YYYY-MM
+            return datetime.strptime(f"{date_str}-01", "%Y-%m-%d").date()
+        elif len(date_str) == 10:  # YYYY-MM-DD
+            return datetime.strptime(date_str, "%Y-%m-%d").date()
+        else:
+            # Try parsing as full date
+            return datetime.strptime(date_str, "%Y-%m-%d").date()
+    except (ValueError, AttributeError, TypeError) as e:
+        print(f"⚠️ Could not parse {field_name}: {date_value} - {e}")
+        return None
+
+
 async def analyze_resume(text: str, candidate_id: str, db: Session, current_user = None) -> Dict[str, Any]:
     """
     Analyze resume text using AI to extract structured information
@@ -335,18 +401,21 @@ Return the analysis as JSON."""
         
         analysis = json.loads(json_text)
         
+        # Validate that analysis has some data
+        if not analysis or not isinstance(analysis, dict):
+            print("⚠️ Invalid or empty analysis result")
+            return {"error": "Failed to extract valid data from resume"}
+        
         # Create candidate if candidate_id is None (new resume upload)
         if candidate_id is None:
-            # Extract name from analysis or use "Unknown"
-            first_name = analysis.get("first_name", "Unknown")
-            last_name = analysis.get("last_name", "")
-            email = analysis.get("email", f"temp_{datetime.utcnow().timestamp()}@temp.com")
+            # Extract name from analysis with safe extraction
+            first_name = safe_extract_string(analysis, "first_name", "Unknown")
+            last_name = safe_extract_string(analysis, "last_name", "")
+            email = safe_extract_string(analysis, "email", f"temp_{datetime.utcnow().timestamp()}@temp.com")
             
-            # Ensure email is a string
-            if isinstance(email, list):
-                email = email[0] if email else f"temp_{datetime.utcnow().timestamp()}@temp.com"
-            elif not isinstance(email, str):
-                email = str(email) if email else f"temp_{datetime.utcnow().timestamp()}@temp.com"
+            # Validate email format - if it looks invalid, use temp email
+            if not email or "@" not in email or email.startswith("temp_"):
+                email = f"temp_{datetime.utcnow().timestamp()}@temp.com"
             
             # Check if candidate already exists by email
             existing_candidate = None
@@ -358,23 +427,35 @@ Return the analysis as JSON."""
                 print(f"📧 Found existing candidate with email {email}, updating...")
                 candidate_id = existing_candidate.id
                 
-                # Update candidate info with new data from resume
+                # Update candidate info with new data from resume (only if not empty/None)
                 if first_name and first_name != "Unknown":
                     existing_candidate.first_name = first_name
                 if last_name:
                     existing_candidate.last_name = last_name
-                if analysis.get("phone"):
-                    existing_candidate.phone = analysis.get("phone")
-                if analysis.get("location"):
-                    existing_candidate.current_location = analysis.get("location")
-                if analysis.get("summary"):
-                    existing_candidate.professional_summary = analysis.get("summary")
-                if analysis.get("linkedin"):
-                    existing_candidate.linkedin_url = analysis.get("linkedin")
-                if analysis.get("github"):
-                    existing_candidate.github_url = analysis.get("github")
-                if analysis.get("portfolio"):
-                    existing_candidate.portfolio_url = analysis.get("portfolio")
+                
+                phone = safe_extract_string(analysis, "phone")
+                if phone:
+                    existing_candidate.phone = phone
+                
+                location = safe_extract_string(analysis, "location")
+                if location:
+                    existing_candidate.current_location = location
+                
+                summary = safe_extract_string(analysis, "summary")
+                if summary:
+                    existing_candidate.professional_summary = summary
+                
+                linkedin = safe_extract_string(analysis, "linkedin")
+                if linkedin:
+                    existing_candidate.linkedin_url = linkedin
+                
+                github = safe_extract_string(analysis, "github")
+                if github:
+                    existing_candidate.github_url = github
+                
+                portfolio = safe_extract_string(analysis, "portfolio")
+                if portfolio:
+                    existing_candidate.portfolio_url = portfolio
                 
                 existing_candidate.updated_at = datetime.utcnow()
                 
@@ -392,185 +473,180 @@ Return the analysis as JSON."""
                     first_name=first_name,
                     last_name=last_name,
                     email=email,
-                    phone=analysis.get("phone"),
-                    current_location=analysis.get("location"),
-                    professional_summary=analysis.get("summary"),
-                    linkedin_url=analysis.get("linkedin"),
-                    github_url=analysis.get("github"),
-                    portfolio_url=analysis.get("portfolio")
+                    phone=safe_extract_string(analysis, "phone", None),
+                    current_location=safe_extract_string(analysis, "location", None),
+                    professional_summary=safe_extract_string(analysis, "summary", None),
+                    linkedin_url=safe_extract_string(analysis, "linkedin", None),
+                    github_url=safe_extract_string(analysis, "github", None),
+                    portfolio_url=safe_extract_string(analysis, "portfolio", None)
                 )
                 db.add(candidate)
                 db.flush()  # Get the ID
                 candidate_id = candidate.id
         
         # Store extracted skills in database
-        if "skills" in analysis:
-            for skill_data in analysis["skills"]:
-                # Extract skill name - handle both dict and string formats
-                if isinstance(skill_data, dict):
-                    skill_name = skill_data.get("name") or skill_data.get("skill_name") or skill_data.get("skill")
-                    category = skill_data.get("category", "technical")
-                else:
-                    skill_name = skill_data
-                    category = "technical"
-                
-                # Skip if no skill name
-                if not skill_name or skill_name.strip() == "":
+        skills_list = safe_extract_list(analysis, "skills")
+        if skills_list:
+            for skill_data in skills_list:
+                try:
+                    # Extract skill name - handle both dict and string formats
+                    if isinstance(skill_data, dict):
+                        skill_name = safe_extract_string(skill_data, "name") or \
+                                    safe_extract_string(skill_data, "skill_name") or \
+                                    safe_extract_string(skill_data, "skill")
+                        category = safe_extract_string(skill_data, "category", "technical")
+                        level = safe_extract_string(skill_data, "level", None)
+                    else:
+                        skill_name = str(skill_data).strip() if skill_data else ""
+                        category = "technical"
+                        level = None
+                    
+                    # Skip if no skill name
+                    if not skill_name or skill_name.strip() == "":
+                        continue
+                    
+                    # Create skill directly linked to candidate
+                    skill = models.Skill(
+                        candidate_id=candidate_id,
+                        skill_name=skill_name.strip(),
+                        skill_category=category,
+                        proficiency_level=level
+                    )
+                    db.add(skill)
+                except Exception as e:
+                    print(f"⚠️ Error processing skill: {skill_data} - {e}")
                     continue
-                
-                # Create skill directly linked to candidate
-                skill = models.Skill(
-                    candidate_id=candidate_id,
-                    skill_name=skill_name.strip(),
-                    skill_category=category,
-                    proficiency_level=skill_data.get("level") if isinstance(skill_data, dict) else None
-                )
-                db.add(skill)
         
         # Store work experience
-        if "work_experience" in analysis:
-            for exp in analysis["work_experience"]:
-                # Parse dates - handle various formats
-                start_date = None
-                end_date = None
-                
-                # Parse start_date
-                if exp.get("start_date"):
-                    try:
-                        start_str = str(exp.get("start_date")).strip()
-                        if len(start_str) == 4:  # Just year
-                            start_date = datetime.strptime(f"{start_str}-01-01", "%Y-%m-%d").date()
-                        elif len(start_str) == 7:  # YYYY-MM
-                            start_date = datetime.strptime(f"{start_str}-01", "%Y-%m-%d").date()
-                        else:  # Try full date
-                            start_date = datetime.strptime(start_str, "%Y-%m-%d").date()
-                    except (ValueError, AttributeError) as e:
-                        print(f"⚠️ Could not parse start_date: {exp.get('start_date')} - {e}")
-                
-                # Parse end_date
-                if exp.get("end_date"):
-                    end_str = str(exp.get("end_date")).strip().lower()
-                    if end_str not in ["present", "current", "now"]:
-                        try:
-                            if len(end_str) == 4:  # Just year
-                                end_date = datetime.strptime(f"{end_str}-12-31", "%Y-%m-%d").date()
-                            elif len(end_str) == 7:  # YYYY-MM
-                                end_date = datetime.strptime(f"{end_str}-01", "%Y-%m-%d").date()
-                            else:  # Try full date
-                                end_date = datetime.strptime(end_str, "%Y-%m-%d").date()
-                        except (ValueError, AttributeError) as e:
-                            print(f"⚠️ Could not parse end_date: {exp.get('end_date')} - {e}")
-                
-                work_exp = models.WorkExperience(
-                    candidate_id=candidate_id,
-                    company_name=exp.get("company", "Unknown"),
-                    job_title=exp.get("title", "Unknown"),
-                    responsibilities=exp.get("description", ""),
-                    start_date=start_date,
-                    end_date=end_date,
-                    is_current=exp.get("is_current", False),
-                    company_location=exp.get("location"),
-                    achievements=exp.get("achievements", []) if exp.get("achievements") else None
-                )
-                db.add(work_exp)
+        work_exp_list = safe_extract_list(analysis, "work_experience")
+        if work_exp_list:
+            for exp in work_exp_list:
+                try:
+                    if not isinstance(exp, dict):
+                        print(f"⚠️ Invalid work experience format: {exp}")
+                        continue
+                    
+                    # Parse dates using safe date parser
+                    start_date = safe_parse_date(exp.get("start_date"), "work start_date")
+                    end_date = safe_parse_date(exp.get("end_date"), "work end_date")
+                    
+                    # Extract fields safely
+                    company_name = safe_extract_string(exp, "company", "Unknown Company")
+                    job_title = safe_extract_string(exp, "title", "Unknown Position")
+                    description = safe_extract_string(exp, "description", "")
+                    location = safe_extract_string(exp, "location", None)
+                    is_current = bool(exp.get("is_current", False))
+                    achievements = safe_extract_list(exp, "achievements")
+                    
+                    work_exp = models.WorkExperience(
+                        candidate_id=candidate_id,
+                        company_name=company_name,
+                        job_title=job_title,
+                        responsibilities=description,
+                        start_date=start_date,
+                        end_date=end_date,
+                        is_current=is_current,
+                        company_location=location,
+                        achievements=achievements if achievements else None
+                    )
+                    db.add(work_exp)
+                except Exception as e:
+                    print(f"⚠️ Error processing work experience: {exp} - {e}")
+                    continue
         
         # Store education
-        if "education" in analysis:
-            for edu in analysis["education"]:
-                # Parse graduation date
-                start_date = None
-                end_date = None
+        education_list = safe_extract_list(analysis, "education")
+        if education_list:
+            for edu in education_list:
+                try:
+                    if not isinstance(edu, dict):
+                        print(f"⚠️ Invalid education format: {edu}")
+                        continue
+                    
+                    # Parse dates using safe date parser
+                    start_date = safe_parse_date(edu.get("start_date"), "education start_date")
+                    grad_date = safe_parse_date(edu.get("graduation_date") or edu.get("end_date"), "graduation_date")
+                    
+                    # Extract graduation year from date
+                    graduation_year = None
+                    if grad_date:
+                        graduation_year = grad_date.year
                 graduation_year = None
-                
-                # Parse start_date
-                if edu.get("start_date"):
-                    try:
-                        start_str = str(edu.get("start_date")).strip()
-                        if len(start_str) == 4:  # Just year
-                            start_date = datetime.strptime(f"{start_str}-01-01", "%Y-%m-%d").date()
-                        elif len(start_str) == 7:  # YYYY-MM
-                            start_date = datetime.strptime(f"{start_str}-01", "%Y-%m-%d").date()
-                        else:  # Try full date
-                            start_date = datetime.strptime(start_str, "%Y-%m-%d").date()
-                    except (ValueError, AttributeError) as e:
-                        print(f"⚠️ Could not parse education start_date: {edu.get('start_date')} - {e}")
-                
-                # Parse graduation_date / end_date
-                grad_date_str = edu.get("graduation_date") or edu.get("end_date")
-                if grad_date_str:
-                    try:
-                        grad_str = str(grad_date_str).strip()
-                        if len(grad_str) == 4:  # Just year
-                            graduation_year = int(grad_str)
-                            end_date = datetime.strptime(f"{grad_str}-06-30", "%Y-%m-%d").date()
-                        elif len(grad_str) == 7:  # YYYY-MM
-                            graduation_year = int(grad_str.split('-')[0])
-                            end_date = datetime.strptime(f"{grad_str}-01", "%Y-%m-%d").date()
-                        else:  # Try full date
-                            end_date = datetime.strptime(grad_str, "%Y-%m-%d").date()
-                            graduation_year = end_date.year
-                    except (ValueError, AttributeError) as e:
-                        print(f"⚠️ Could not parse graduation_date: {grad_date_str} - {e}")
-                
-                education = models.Education(
-                    candidate_id=candidate_id,
-                    institution=edu.get("institution", "Unknown"),
-                    degree=edu.get("degree", ""),
-                    field_of_study=edu.get("field", ""),
-                    start_date=start_date,
-                    end_date=end_date,
-                    graduation_year=graduation_year
-                )
-                db.add(education)
+                    
+                    # Extract fields safely
+                    institution = safe_extract_string(edu, "institution", "Unknown Institution")
+                    degree = safe_extract_string(edu, "degree", "")
+                    field = safe_extract_string(edu, "field", "")
+                    
+                    education = models.Education(
+                        candidate_id=candidate_id,
+                        institution=institution,
+                        degree=degree,
+                        field_of_study=field,
+                        start_date=start_date,
+                        end_date=grad_date,
+                        graduation_year=graduation_year
+                    )
+                    db.add(education)
+                except Exception as e:
+                    print(f"⚠️ Error processing education: {edu} - {e}")
+                    continue
         
         # Store projects
-        if "projects" in analysis:
-            for proj in analysis["projects"]:
-                # Parse project dates
-                start_date = None
-                end_date = None
-                
-                if proj.get("start_date"):
-                    try:
-                        start_str = str(proj.get("start_date")).strip()
-                        if len(start_str) == 4:  # Just year
-                            start_date = datetime.strptime(f"{start_str}-01-01", "%Y-%m-%d").date()
-                        elif len(start_str) == 7:  # YYYY-MM
-                            start_date = datetime.strptime(f"{start_str}-01", "%Y-%m-%d").date()
-                        else:
-                            start_date = datetime.strptime(start_str, "%Y-%m-%d").date()
-                    except (ValueError, AttributeError):
-                        start_date = None
-                
-                if proj.get("end_date"):
-                    try:
-                        end_str = str(proj.get("end_date")).strip()
-                        if end_str.lower() != "present":
-                            if len(end_str) == 4:
-                                end_date = datetime.strptime(f"{end_str}-01-01", "%Y-%m-%d").date()
-                            elif len(end_str) == 7:
-                                end_date = datetime.strptime(f"{end_str}-01", "%Y-%m-%d").date()
-                            else:
-                                end_date = datetime.strptime(end_str, "%Y-%m-%d").date()
-                    except (ValueError, AttributeError):
-                        end_date = None
-                
-                project = models.Project(
-                    candidate_id=candidate_id,
-                    project_name=proj.get("name", "Untitled Project"),  # Use project_name instead of title
-                    project_type=proj.get("type", "Professional"),
-                    description=proj.get("description", ""),
-                    role=proj.get("role", ""),
-                    technologies_used=proj.get("technologies", []),  # Use technologies_used instead of technologies
-                    start_date=start_date,
-                    end_date=end_date,
-                    project_url=proj.get("url", "")
-                )
-                db.add(project)
+        projects_list = safe_extract_list(analysis, "projects")
+        if projects_list:
+            for proj in projects_list:
+                try:
+                    if not isinstance(proj, dict):
+                        print(f"⚠️ Invalid project format: {proj}")
+                        continue
+                    
+                    # Parse project dates using safe parser
+                    start_date = safe_parse_date(proj.get("start_date"), "project start_date")
+                    end_date = safe_parse_date(proj.get("end_date"), "project end_date")
+                    
+                    # Extract fields safely
+                    project_name = safe_extract_string(proj, "name", "Untitled Project")
+                    project_type = safe_extract_string(proj, "type", "Professional")
+                    description = safe_extract_string(proj, "description", "")
+                    role = safe_extract_string(proj, "role", "")
+                    technologies = safe_extract_list(proj, "technologies")
+                    url = safe_extract_string(proj, "url", "")
+                    
+                    project = models.Project(
+                        candidate_id=candidate_id,
+                        project_name=project_name,
+                        project_type=project_type,
+                        description=description,
+                        role=role,
+                        technologies_used=technologies,
+                        start_date=start_date,
+                        end_date=end_date,
+                        project_url=url
+                    )
+                    db.add(project)
+                except Exception as e:
+                    print(f"⚠️ Error processing project: {proj} - {e}")
+                    continue
         
         # Store certifications
-        if "certifications" in analysis:
-            for cert in analysis["certifications"]:
+        certifications_list = safe_extract_list(analysis, "certifications")
+        if certifications_list:
+            for cert in certifications_list:
+                try:
+                    if not isinstance(cert, dict):
+                        print(f"⚠️ Invalid certification format: {cert}")
+                        continue
+                    
+                    # Parse dates using safe parser
+                    issue_date = safe_parse_date(cert.get("issue_date"), "cert issue_date")
+                    expiry_date = safe_parse_date(cert.get("expiry_date"), "cert expiry_date")
+                    
+                    # Extract fields safely
+                    cert_name = safe_extract_string(cert, "name", "Unknown Certification")
+                    issuing_org = safe_extract_string(cert, "issuing_organization", "")
+                    credential_id = safe_extract_string(cert, "credential_id", None)
+                    credential_url = safe_extract_string(cert, "credential_url", None)
                 # Parse issue date
                 issue_date = None
                 if cert.get("issue_date"):
@@ -581,44 +657,46 @@ Return the analysis as JSON."""
                         elif len(issue_str) == 7:  # YYYY-MM
                             issue_date = datetime.strptime(f"{issue_str}-01", "%Y-%m-%d").date()
                         else:  # Try full date
-                            issue_date = datetime.strptime(issue_str, "%Y-%m-%d").date()
-                    except (ValueError, AttributeError) as e:
-                        print(f"⚠️ Could not parse cert issue_date: {cert.get('issue_date')} - {e}")
-                
-                # Parse expiry date
-                expiry_date = None
-                if cert.get("expiry_date"):
-                    try:
-                        expiry_str = str(cert.get("expiry_date")).strip()
-                        if len(expiry_str) == 4:  # Just year
-                            expiry_date = datetime.strptime(f"{expiry_str}-01-01", "%Y-%m-%d").date()
-                        elif len(expiry_str) == 7:  # YYYY-MM
-                            expiry_date = datetime.strptime(f"{expiry_str}-01", "%Y-%m-%d").date()
-                        else:  # Try full date
-                            expiry_date = datetime.strptime(expiry_str, "%Y-%m-%d").date()
-                    except (ValueError, AttributeError) as e:
-                        print(f"⚠️ Could not parse cert expiry_date: {cert.get('expiry_date')} - {e}")
-                
-                certification = models.Certification(
-                    candidate_id=candidate_id,
-                    certification_name=cert.get("name", ""),
-                    issuing_organization=cert.get("issuing_organization", ""),
-                    issue_date=issue_date,
-                    expiry_date=expiry_date,
-                    credential_id=cert.get("credential_id"),
-                    credential_url=cert.get("credential_url")
-                )
-                db.add(certification)
+                    credential_url = safe_extract_string(cert, "credential_url", None)
+                    
+                    certification = models.Certification(
+                        candidate_id=candidate_id,
+                        certification_name=cert_name,
+                        issuing_organization=issuing_org,
+                        issue_date=issue_date,
+                        expiry_date=expiry_date,
+                        credential_id=credential_id,
+                        credential_url=credential_url
+                    )
+                    db.add(certification)
+                except Exception as e:
+                    print(f"⚠️ Error processing certification: {cert} - {e}")
+                    continue
         
         # Store languages
-        if "languages" in analysis:
-            for lang in analysis["languages"]:
-                language = models.Language(
-                    candidate_id=candidate_id,
-                    language_name=lang.get("name", ""),
-                    proficiency_level=lang.get("proficiency", "")
-                )
-                db.add(language)
+        languages_list = safe_extract_list(analysis, "languages")
+        if languages_list:
+            for lang in languages_list:
+                try:
+                    if isinstance(lang, dict):
+                        lang_name = safe_extract_string(lang, "name", "")
+                        proficiency = safe_extract_string(lang, "proficiency", "")
+                    else:
+                        lang_name = str(lang).strip() if lang else ""
+                        proficiency = ""
+                    
+                    if not lang_name:
+                        continue
+                    
+                    language = models.Language(
+                        candidate_id=candidate_id,
+                        language_name=lang_name,
+                        proficiency_level=proficiency
+                    )
+                    db.add(language)
+                except Exception as e:
+                    print(f"⚠️ Error processing language: {lang} - {e}")
+                    continue
         
         db.commit()
         
