@@ -571,7 +571,6 @@ Return the analysis as JSON."""
                     graduation_year = None
                     if grad_date:
                         graduation_year = grad_date.year
-                graduation_year = None
                     
                     # Extract fields safely
                     institution = safe_extract_string(edu, "institution", "Unknown Institution")
@@ -643,20 +642,9 @@ Return the analysis as JSON."""
                     expiry_date = safe_parse_date(cert.get("expiry_date"), "cert expiry_date")
                     
                     # Extract fields safely
-                    cert_name = safe_extract_string(cert, "name", "Unknown Certification")
+                    cert_name = safe_extract_string(cert, "name") or safe_extract_string(cert, "certification_name", "Unknown Certification")
                     issuing_org = safe_extract_string(cert, "issuing_organization", "")
                     credential_id = safe_extract_string(cert, "credential_id", None)
-                    credential_url = safe_extract_string(cert, "credential_url", None)
-                # Parse issue date
-                issue_date = None
-                if cert.get("issue_date"):
-                    try:
-                        issue_str = str(cert.get("issue_date")).strip()
-                        if len(issue_str) == 4:  # Just year
-                            issue_date = datetime.strptime(f"{issue_str}-01-01", "%Y-%m-%d").date()
-                        elif len(issue_str) == 7:  # YYYY-MM
-                            issue_date = datetime.strptime(f"{issue_str}-01", "%Y-%m-%d").date()
-                        else:  # Try full date
                     credential_url = safe_extract_string(cert, "credential_url", None)
                     
                     certification = models.Certification(
