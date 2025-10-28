@@ -5,6 +5,7 @@ import Layout from './components/Layout'
 import Dashboard from './pages/Dashboard'
 import Candidates from './pages/Candidates'
 import CandidateDetailEnhanced from './pages/CandidateDetailEnhanced'
+import EditCandidate from './pages/EditCandidate'
 import Jobs from './pages/Jobs'
 import JobDetail from './pages/JobDetail'
 import Applications from './pages/Applications'
@@ -13,8 +14,7 @@ import UploadResume from './pages/UploadResume'
 import Login from './pages/Login'
 import Profile from './pages/Profile'
 import AdminUsers from './pages/admin/Users'
-import AdminSettings from './pages/AdminSettings'
-import AISettings from './pages/admin/AISettings'
+import UnifiedSettings from './pages/admin/UnifiedSettings'
 
 function App() {
   return (
@@ -34,6 +34,7 @@ function App() {
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="candidates" element={<Candidates />} />
             <Route path="candidates/:id" element={<CandidateDetailEnhanced />} />
+            <Route path="candidates/:id/edit" element={<EditCandidate />} />
             <Route path="jobs" element={<Jobs />} />
             <Route path="jobs/:id" element={<JobDetail />} />
             <Route path="applications" element={<Applications />} />
@@ -49,12 +50,7 @@ function App() {
             } />
             <Route path="admin/settings" element={
               <ProtectedRoute requireAdmin={true}>
-                <AdminSettings />
-              </ProtectedRoute>
-            } />
-            <Route path="admin/ai-settings" element={
-              <ProtectedRoute requireAdmin={true}>
-                <AISettings />
+                <UnifiedSettings />
               </ProtectedRoute>
             } />
           </Route>

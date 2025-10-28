@@ -62,8 +62,7 @@ const Layout = () => {
   // Admin navigation items (only shown to admins)
   const adminNavItems = isAdmin ? [
     { path: '/admin/users', icon: Shield, label: 'User Management' },
-    { path: '/admin/settings', icon: Settings, label: 'System Settings' },
-    { path: '/admin/ai-settings', icon: Settings, label: 'AI Configuration' },
+    { path: '/admin/settings', icon: Settings, label: 'Settings' },
   ] : []
 
   return (

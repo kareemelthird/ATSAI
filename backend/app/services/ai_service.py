@@ -822,7 +822,7 @@ Job: {job.title}
 Location: {job.location or 'Remote'}
 Type: {job.employment_type or 'Full-time'}
 Required Skills: {', '.join(job.required_skills or [])}
-Experience: {job.experience_years_min or 0}-{job.experience_years_max or 10} years
+Experience: {job.min_experience_years or 0}-{job.max_experience_years or 10} years
 Salary: {job.salary_min}-{job.salary_max} {job.salary_currency or 'USD'}
 Description: {job.description[:200] if job.description else 'Not specified'}...
 ---"""

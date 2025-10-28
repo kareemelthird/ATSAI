@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { candidateApi, resumeApi } from '@/lib/api'
 import { 
   Mail, Phone, MapPin, Linkedin, Github, Globe, Download, Trash2, FileText, 
-  Calendar, CheckCircle, Clock, XCircle, ArrowLeft, ExternalLink, Eye, 
+  Calendar, CheckCircle, Clock, XCircle, ArrowLeft, ExternalLink, Eye, Edit,
   Briefcase, GraduationCap, Award, Code, Languages, FolderGit2, DollarSign,
   MapPinned, Building2, Star, BookOpen, BarChart3, TrendingUp, PieChart
 } from 'lucide-react'
@@ -178,6 +178,13 @@ const CandidateDetailEnhanced = () => {
                     )}
                   </div>
                 </div>
+                <button
+                  onClick={() => navigate(`/candidates/${id}/edit`)}
+                  className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center gap-2"
+                >
+                  <Edit className="w-4 h-4" />
+                  تعديل البيانات
+                </button>
               </div>
 
               {/* Contact Info - Horizontal */}
