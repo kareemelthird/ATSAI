@@ -314,6 +314,14 @@ Return the analysis as JSON."""
     try:
         response = await call_ai_api(prompt, system_message, user_api_key)
         
+        # Ensure response is a string
+        if not isinstance(response, str):
+            print(f"⚠️ Unexpected response type: {type(response)}")
+            if isinstance(response, list):
+                response = str(response[0]) if response else "{}"
+            else:
+                response = str(response)
+        
         # Try to parse JSON from response
         # Sometimes AI adds markdown formatting, so clean it
         json_text = response.strip()
@@ -334,9 +342,15 @@ Return the analysis as JSON."""
             last_name = analysis.get("last_name", "")
             email = analysis.get("email", f"temp_{datetime.utcnow().timestamp()}@temp.com")
             
+            # Ensure email is a string
+            if isinstance(email, list):
+                email = email[0] if email else f"temp_{datetime.utcnow().timestamp()}@temp.com"
+            elif not isinstance(email, str):
+                email = str(email) if email else f"temp_{datetime.utcnow().timestamp()}@temp.com"
+            
             # Check if candidate already exists by email
             existing_candidate = None
-            if email and not email.startswith("temp_"):
+            if email and isinstance(email, str) and not email.startswith("temp_"):
                 existing_candidate = db.query(models.Candidate).filter(models.Candidate.email == email).first()
             
             if existing_candidate:
