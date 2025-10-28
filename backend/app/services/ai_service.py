@@ -547,12 +547,28 @@ Return the analysis as JSON."""
                     except (ValueError, AttributeError) as e:
                         print(f"⚠️ Could not parse cert issue_date: {cert.get('issue_date')} - {e}")
                 
+                # Parse expiry date
+                expiry_date = None
+                if cert.get("expiry_date"):
+                    try:
+                        expiry_str = str(cert.get("expiry_date")).strip()
+                        if len(expiry_str) == 4:  # Just year
+                            expiry_date = datetime.strptime(f"{expiry_str}-01-01", "%Y-%m-%d").date()
+                        elif len(expiry_str) == 7:  # YYYY-MM
+                            expiry_date = datetime.strptime(f"{expiry_str}-01", "%Y-%m-%d").date()
+                        else:  # Try full date
+                            expiry_date = datetime.strptime(expiry_str, "%Y-%m-%d").date()
+                    except (ValueError, AttributeError) as e:
+                        print(f"⚠️ Could not parse cert expiry_date: {cert.get('expiry_date')} - {e}")
+                
                 certification = models.Certification(
                     candidate_id=candidate_id,
-                    name=cert.get("name", ""),
+                    certification_name=cert.get("name", ""),
                     issuing_organization=cert.get("issuing_organization", ""),
                     issue_date=issue_date,
-                    credential_id=cert.get("credential_id")
+                    expiry_date=expiry_date,
+                    credential_id=cert.get("credential_id"),
+                    credential_url=cert.get("credential_url")
                 )
                 db.add(certification)
         
