@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Save, RefreshCw, AlertCircle, CheckCircle, Settings, MessageSquare, FileText, Zap } from 'lucide-react';
 import axios from 'axios';
+import { useAuth } from '../../contexts/AuthContext';
 
 const API_BASE_URL = (import.meta as any).env.VITE_API_URL || 'http://localhost:8000';
 
@@ -15,6 +16,7 @@ interface AISetting {
 }
 
 const AISettings: React.FC = () => {
+  const { user } = useAuth();
   const [settings, setSettings] = useState<AISetting[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -26,9 +28,17 @@ const AISettings: React.FC = () => {
     fetchSettings();
   }, []);
 
+  const getToken = () => localStorage.getItem('access_token');
+
   const fetchSettings = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
+      if (!token) {
+        setMessage({ type: 'error', text: 'Please log in to access AI settings' });
+        setLoading(false);
+        return;
+      }
+      
       const response = await axios.get(`${API_BASE_URL}/api/v1/ai-settings/settings`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -36,7 +46,13 @@ const AISettings: React.FC = () => {
       setLoading(false);
     } catch (error: any) {
       console.error('Error fetching AI settings:', error);
-      setMessage({ type: 'error', text: error.response?.data?.detail || 'Failed to load settings' });
+      if (error.response?.status === 401) {
+        setMessage({ type: 'error', text: 'Session expired. Please log in again.' });
+      } else if (error.response?.status === 403) {
+        setMessage({ type: 'error', text: 'Admin access required to view AI settings' });
+      } else {
+        setMessage({ type: 'error', text: error.response?.data?.detail || 'Failed to load settings' });
+      }
       setLoading(false);
     }
   };
@@ -44,7 +60,13 @@ const AISettings: React.FC = () => {
   const initializeDefaults = async () => {
     try {
       setSaving(true);
-      const token = localStorage.getItem('token');
+      const token = getToken();
+      if (!token) {
+        setMessage({ type: 'error', text: 'Authentication required' });
+        setSaving(false);
+        return;
+      }
+      
       const response = await axios.post(
         `${API_BASE_URL}/api/v1/ai-settings/settings/initialize`,
         {},
@@ -53,7 +75,13 @@ const AISettings: React.FC = () => {
       setMessage({ type: 'success', text: `Initialized ${response.data.created.length} default settings` });
       fetchSettings();
     } catch (error: any) {
-      setMessage({ type: 'error', text: error.response?.data?.detail || 'Failed to initialize' });
+      if (error.response?.status === 401) {
+        setMessage({ type: 'error', text: 'Session expired. Please log in again.' });
+      } else if (error.response?.status === 403) {
+        setMessage({ type: 'error', text: 'Admin access required' });
+      } else {
+        setMessage({ type: 'error', text: error.response?.data?.detail || 'Failed to initialize' });
+      }
     } finally {
       setSaving(false);
     }
@@ -72,7 +100,13 @@ const AISettings: React.FC = () => {
   const saveSetting = async (settingKey: string) => {
     try {
       setSaving(true);
-      const token = localStorage.getItem('token');
+      const token = getToken();
+      if (!token) {
+        setMessage({ type: 'error', text: 'Authentication required' });
+        setSaving(false);
+        return;
+      }
+      
       await axios.put(
         `${API_BASE_URL}/api/v1/ai-settings/settings/${settingKey}`,
         { setting_value: editValue, is_active: true },
@@ -82,7 +116,13 @@ const AISettings: React.FC = () => {
       setEditingKey(null);
       fetchSettings();
     } catch (error: any) {
-      setMessage({ type: 'error', text: error.response?.data?.detail || 'Failed to save' });
+      if (error.response?.status === 401) {
+        setMessage({ type: 'error', text: 'Session expired. Please log in again.' });
+      } else if (error.response?.status === 403) {
+        setMessage({ type: 'error', text: 'Admin access required' });
+      } else {
+        setMessage({ type: 'error', text: error.response?.data?.detail || 'Failed to save' });
+      }
     } finally {
       setSaving(false);
     }
