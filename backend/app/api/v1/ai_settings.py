@@ -45,7 +45,7 @@ class AISettingResponse(BaseModel):
 
 def require_admin(current_user: User = Depends(get_current_active_user)):
     """Dependency to require admin role"""
-    if current_user.role != "admin":
+    if current_user.role not in ["admin", "super_admin"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admins can manage AI settings"
@@ -59,7 +59,7 @@ async def get_all_ai_settings(
     current_user: User = Depends(get_current_active_user)
 ):
     """Get all AI settings (admin only)"""
-    if current_user.role != "admin":
+    if current_user.role not in ["admin", "super_admin"]:
         raise HTTPException(status_code=403, detail="Admin access required")
     
     settings = db.query(SystemAISetting).all()
@@ -73,7 +73,7 @@ async def get_ai_setting(
     current_user: User = Depends(get_current_active_user)
 ):
     """Get a specific AI setting"""
-    if current_user.role != "admin":
+    if current_user.role not in ["admin", "super_admin"]:
         raise HTTPException(status_code=403, detail="Admin access required")
     
     setting = db.query(SystemAISetting).filter(
