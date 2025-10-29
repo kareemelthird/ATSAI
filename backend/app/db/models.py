@@ -97,6 +97,7 @@ class Candidate(Base):
     # Professional Summary
     professional_summary = Column(Text)
     career_level = Column(String(50))
+    years_of_experience = Column(Integer, default=0)
     
     # Availability
     availability_status = Column(String(50))  # "Immediately", "2 weeks", "1 month"
