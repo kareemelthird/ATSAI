@@ -183,7 +183,7 @@ const CandidateDetailEnhanced = () => {
                   className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center gap-2"
                 >
                   <Edit className="w-4 h-4" />
-                  Edit Profile
+                  تعديل البيانات
                 </button>
               </div>
 

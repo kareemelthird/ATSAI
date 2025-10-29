@@ -769,25 +769,443 @@ export default function EditCandidate() {
           </div>
         )}
 
-        {/* Education, Projects, Certifications, Languages - Similar structure */}
+        {/* Education Section */}
         {activeSection === 'education' && (
-          <div className="text-center py-8 text-gray-500">
-            قسم التعليم - قيد التطوير
+          <div className="space-y-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">التعليم</h3>
+              <button
+                onClick={addEducation}
+                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                إضافة مؤهل
+              </button>
+            </div>
+            {education.map((edu, index) => (
+              <div key={index} className="border border-gray-200 rounded-lg p-4 space-y-3">
+                <div className="flex justify-between items-start">
+                  <div className="flex-1 space-y-3">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">اسم المؤسسة</label>
+                        <input
+                          type="text"
+                          value={edu.institution_name}
+                          onChange={(e) => {
+                            const newEdu = [...education];
+                            newEdu[index].institution_name = e.target.value;
+                            setEducation(newEdu);
+                          }}
+                          className="w-full p-2 border border-gray-300 rounded-lg"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">الدرجة العلمية</label>
+                        <input
+                          type="text"
+                          value={edu.degree}
+                          onChange={(e) => {
+                            const newEdu = [...education];
+                            newEdu[index].degree = e.target.value;
+                            setEducation(newEdu);
+                          }}
+                          className="w-full p-2 border border-gray-300 rounded-lg"
+                          placeholder="مثال: بكالوريوس، ماجستير"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">التخصص</label>
+                        <input
+                          type="text"
+                          value={edu.field_of_study || ''}
+                          onChange={(e) => {
+                            const newEdu = [...education];
+                            newEdu[index].field_of_study = e.target.value;
+                            setEducation(newEdu);
+                          }}
+                          className="w-full p-2 border border-gray-300 rounded-lg"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">تاريخ البدء</label>
+                        <input
+                          type="date"
+                          value={edu.start_date}
+                          onChange={(e) => {
+                            const newEdu = [...education];
+                            newEdu[index].start_date = e.target.value;
+                            setEducation(newEdu);
+                          }}
+                          className="w-full p-2 border border-gray-300 rounded-lg"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">تاريخ التخرج</label>
+                        <input
+                          type="date"
+                          value={edu.end_date || ''}
+                          onChange={(e) => {
+                            const newEdu = [...education];
+                            newEdu[index].end_date = e.target.value || undefined;
+                            setEducation(newEdu);
+                          }}
+                          className="w-full p-2 border border-gray-300 rounded-lg"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">التقدير</label>
+                      <input
+                        type="text"
+                        value={edu.grade || ''}
+                        onChange={(e) => {
+                          const newEdu = [...education];
+                          newEdu[index].grade = e.target.value;
+                          setEducation(newEdu);
+                        }}
+                        className="w-full p-2 border border-gray-300 rounded-lg"
+                        placeholder="مثال: ممتاز، جيد جداً، 3.8 GPA"
+                      />
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => removeEducation(index)}
+                    className="ml-2 p-2 text-red-500 hover:bg-red-50 rounded-lg"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+            {education.length === 0 && (
+              <div className="text-center py-8 text-gray-500">
+                لا توجد مؤهلات تعليمية. انقر على "إضافة مؤهل" لإضافة مؤهل جديد.
+              </div>
+            )}
           </div>
         )}
+
+        {/* Projects Section */}
         {activeSection === 'projects' && (
-          <div className="text-center py-8 text-gray-500">
-            قسم المشاريع - قيد التطوير
+          <div className="space-y-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">المشاريع</h3>
+              <button
+                onClick={addProject}
+                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                إضافة مشروع
+              </button>
+            </div>
+            {projects.map((proj, index) => (
+              <div key={index} className="border border-gray-200 rounded-lg p-4 space-y-3">
+                <div className="flex justify-between items-start">
+                  <div className="flex-1 space-y-3">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">اسم المشروع</label>
+                        <input
+                          type="text"
+                          value={proj.project_name}
+                          onChange={(e) => {
+                            const newProj = [...projects];
+                            newProj[index].project_name = e.target.value;
+                            setProjects(newProj);
+                          }}
+                          className="w-full p-2 border border-gray-300 rounded-lg"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">الدور</label>
+                        <input
+                          type="text"
+                          value={proj.role || ''}
+                          onChange={(e) => {
+                            const newProj = [...projects];
+                            newProj[index].role = e.target.value;
+                            setProjects(newProj);
+                          }}
+                          className="w-full p-2 border border-gray-300 rounded-lg"
+                          placeholder="مثال: مطور رئيسي، مدير مشروع"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">الوصف</label>
+                      <textarea
+                        value={proj.description || ''}
+                        onChange={(e) => {
+                          const newProj = [...projects];
+                          newProj[index].description = e.target.value;
+                          setProjects(newProj);
+                        }}
+                        rows={3}
+                        className="w-full p-2 border border-gray-300 rounded-lg"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">تاريخ البدء</label>
+                        <input
+                          type="date"
+                          value={proj.start_date || ''}
+                          onChange={(e) => {
+                            const newProj = [...projects];
+                            newProj[index].start_date = e.target.value;
+                            setProjects(newProj);
+                          }}
+                          className="w-full p-2 border border-gray-300 rounded-lg"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">تاريخ الانتهاء</label>
+                        <input
+                          type="date"
+                          value={proj.end_date || ''}
+                          onChange={(e) => {
+                            const newProj = [...projects];
+                            newProj[index].end_date = e.target.value;
+                            setProjects(newProj);
+                          }}
+                          className="w-full p-2 border border-gray-300 rounded-lg"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">رابط المشروع</label>
+                      <input
+                        type="url"
+                        value={proj.project_url || ''}
+                        onChange={(e) => {
+                          const newProj = [...projects];
+                          newProj[index].project_url = e.target.value;
+                          setProjects(newProj);
+                        }}
+                        className="w-full p-2 border border-gray-300 rounded-lg"
+                        placeholder="https://..."
+                        dir="ltr"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">التقنيات المستخدمة</label>
+                      <input
+                        type="text"
+                        value={proj.technologies_used?.join(', ') || ''}
+                        onChange={(e) => {
+                          const newProj = [...projects];
+                          newProj[index].technologies_used = e.target.value.split(',').map(t => t.trim());
+                          setProjects(newProj);
+                        }}
+                        className="w-full p-2 border border-gray-300 rounded-lg"
+                        placeholder="مثال: React, Node.js, PostgreSQL"
+                      />
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => removeProject(index)}
+                    className="ml-2 p-2 text-red-500 hover:bg-red-50 rounded-lg"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+            {projects.length === 0 && (
+              <div className="text-center py-8 text-gray-500">
+                لا توجد مشاريع. انقر على "إضافة مشروع" لإضافة مشروع جديد.
+              </div>
+            )}
           </div>
         )}
+
+        {/* Certifications Section */}
         {activeSection === 'certifications' && (
-          <div className="text-center py-8 text-gray-500">
-            قسم الشهادات - قيد التطوير
+          <div className="space-y-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">الشهادات</h3>
+              <button
+                onClick={addCertification}
+                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                إضافة شهادة
+              </button>
+            </div>
+            {certifications.map((cert, index) => (
+              <div key={index} className="border border-gray-200 rounded-lg p-4 space-y-3">
+                <div className="flex justify-between items-start">
+                  <div className="flex-1 space-y-3">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">اسم الشهادة</label>
+                        <input
+                          type="text"
+                          value={cert.certification_name}
+                          onChange={(e) => {
+                            const newCert = [...certifications];
+                            newCert[index].certification_name = e.target.value;
+                            setCertifications(newCert);
+                          }}
+                          className="w-full p-2 border border-gray-300 rounded-lg"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">الجهة المانحة</label>
+                        <input
+                          type="text"
+                          value={cert.issuing_organization}
+                          onChange={(e) => {
+                            const newCert = [...certifications];
+                            newCert[index].issuing_organization = e.target.value;
+                            setCertifications(newCert);
+                          }}
+                          className="w-full p-2 border border-gray-300 rounded-lg"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">تاريخ الإصدار</label>
+                        <input
+                          type="date"
+                          value={cert.issue_date || ''}
+                          onChange={(e) => {
+                            const newCert = [...certifications];
+                            newCert[index].issue_date = e.target.value;
+                            setCertifications(newCert);
+                          }}
+                          className="w-full p-2 border border-gray-300 rounded-lg"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">تاريخ الانتهاء</label>
+                        <input
+                          type="date"
+                          value={cert.expiry_date || ''}
+                          onChange={(e) => {
+                            const newCert = [...certifications];
+                            newCert[index].expiry_date = e.target.value;
+                            setCertifications(newCert);
+                          }}
+                          className="w-full p-2 border border-gray-300 rounded-lg"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">رقم الشهادة</label>
+                        <input
+                          type="text"
+                          value={cert.credential_id || ''}
+                          onChange={(e) => {
+                            const newCert = [...certifications];
+                            newCert[index].credential_id = e.target.value;
+                            setCertifications(newCert);
+                          }}
+                          className="w-full p-2 border border-gray-300 rounded-lg"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">رابط الشهادة</label>
+                        <input
+                          type="url"
+                          value={cert.credential_url || ''}
+                          onChange={(e) => {
+                            const newCert = [...certifications];
+                            newCert[index].credential_url = e.target.value;
+                            setCertifications(newCert);
+                          }}
+                          className="w-full p-2 border border-gray-300 rounded-lg"
+                          placeholder="https://..."
+                          dir="ltr"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => removeCertification(index)}
+                    className="ml-2 p-2 text-red-500 hover:bg-red-50 rounded-lg"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+            {certifications.length === 0 && (
+              <div className="text-center py-8 text-gray-500">
+                لا توجد شهادات. انقر على "إضافة شهادة" لإضافة شهادة جديدة.
+              </div>
+            )}
           </div>
         )}
+
+        {/* Languages Section */}
         {activeSection === 'languages' && (
-          <div className="text-center py-8 text-gray-500">
-            قسم اللغات - قيد التطوير
+          <div className="space-y-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">اللغات</h3>
+              <button
+                onClick={addLanguage}
+                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                إضافة لغة
+              </button>
+            </div>
+            {languages.map((lang, index) => (
+              <div key={index} className="border border-gray-200 rounded-lg p-4">
+                <div className="flex justify-between items-start gap-4">
+                  <div className="flex-1 grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">اللغة</label>
+                      <input
+                        type="text"
+                        value={lang.language_name}
+                        onChange={(e) => {
+                          const newLang = [...languages];
+                          newLang[index].language_name = e.target.value;
+                          setLanguages(newLang);
+                        }}
+                        className="w-full p-2 border border-gray-300 rounded-lg"
+                        placeholder="مثال: العربية، الإنجليزية"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">المستوى</label>
+                      <select
+                        value={lang.proficiency_level}
+                        onChange={(e) => {
+                          const newLang = [...languages];
+                          newLang[index].proficiency_level = e.target.value;
+                          setLanguages(newLang);
+                        }}
+                        className="w-full p-2 border border-gray-300 rounded-lg"
+                      >
+                        <option value="Beginner">مبتدئ</option>
+                        <option value="Intermediate">متوسط</option>
+                        <option value="Advanced">متقدم</option>
+                        <option value="Native">لغة أم</option>
+                      </select>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => removeLanguage(index)}
+                    className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+            {languages.length === 0 && (
+              <div className="text-center py-8 text-gray-500">
+                لا توجد لغات. انقر على "إضافة لغة" لإضافة لغة جديدة.
+              </div>
+            )}
           </div>
         )}
       </div>
