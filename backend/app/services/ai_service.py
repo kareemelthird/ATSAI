@@ -274,7 +274,9 @@ CRITICAL EXTRACTION RULES:
 4. For skills: Categorize as technical, soft, or domain-specific
 5. For education: Include ALL degrees, certifications, and courses
 6. Extract projects with technologies used
-7. Extract languages with proficiency levels if mentioned"""
+7. Extract languages with proficiency levels if mentioned
+8. Determine career_level based on job titles and experience: Entry (0-2 years), Mid (3-5 years), Senior (6-10 years), Lead (10+ years), Manager/Director/Executive (management roles)
+9. Calculate total years_of_experience from all work history"""
     )
     
     system_message = custom_instructions + """
@@ -288,6 +290,8 @@ CRITICAL EXTRACTION RULES:
   "github": "github.com/johndoe",
   "portfolio": "johndoe.com",
   "summary": "Comprehensive professional summary highlighting key achievements, years of experience, and areas of expertise. Make this 2-3 sentences.",
+  "career_level": "Mid",
+  "years_of_experience": 5,
   
   "skills": [
     {"name": "Python", "category": "technical", "level": "Expert"},
@@ -445,6 +449,14 @@ Return the analysis as JSON."""
                 if summary:
                     existing_candidate.professional_summary = summary
                 
+                career_level = safe_extract_string(analysis, "career_level")
+                if career_level:
+                    existing_candidate.career_level = career_level
+                
+                years_exp = analysis.get("years_of_experience")
+                if years_exp and isinstance(years_exp, int):
+                    existing_candidate.years_of_experience = years_exp
+                
                 linkedin = safe_extract_string(analysis, "linkedin")
                 if linkedin:
                     existing_candidate.linkedin_url = linkedin
@@ -476,6 +488,8 @@ Return the analysis as JSON."""
                     phone=safe_extract_string(analysis, "phone", None),
                     current_location=safe_extract_string(analysis, "location", None),
                     professional_summary=safe_extract_string(analysis, "summary", None),
+                    career_level=safe_extract_string(analysis, "career_level", None),
+                    years_of_experience=analysis.get("years_of_experience", 0) if isinstance(analysis.get("years_of_experience"), int) else 0,
                     linkedin_url=safe_extract_string(analysis, "linkedin", None),
                     github_url=safe_extract_string(analysis, "github", None),
                     portfolio_url=safe_extract_string(analysis, "portfolio", None)

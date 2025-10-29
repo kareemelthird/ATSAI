@@ -189,7 +189,20 @@ CRITICAL EXTRACTION RULES:
 7. Extract languages with proficiency levels if mentioned
 8. Extract ALL relevant dates in YYYY-MM or YYYY format
 9. For work descriptions: Include key responsibilities AND achievements
-10. Be thorough and accurate - only extract what's present in the resume""",
+10. Be thorough and accurate - only extract what's present in the resume
+11. Determine career_level based on job titles and experience: Entry (0-2 years), Mid (3-5 years), Senior (6-10 years), Lead (10+ years), Manager/Director/Executive (management roles)
+12. Calculate total years_of_experience from all work history (sum of all positions)
+
+REQUIRED FIELDS TO EXTRACT:
+- first_name, last_name, email (mandatory)
+- phone, location, linkedin, github, portfolio (if available)
+- summary (professional summary - 2-3 sentences)
+- career_level (Entry/Mid/Senior/Lead/Manager/Director/Executive)
+- years_of_experience (total years, integer)
+- skills (array with name, category, level)
+- work_experience (array with company, title, dates, description, achievements)
+- education (array with institution, degree, field, dates)
+- projects, certifications, languages (if available)""",
             "setting_type": "string",
             "description": "System instructions for AI resume analysis"
         },
