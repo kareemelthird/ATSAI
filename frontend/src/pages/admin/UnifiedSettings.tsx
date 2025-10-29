@@ -1,331 +1,309 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Save, RefreshCw, AlertCircle, CheckCircle, Settings as SettingsIcon, 
-  MessageSquare, FileText, Zap, TestTube, Power, Database, Shield, Key 
-} from 'lucide-react';
-import axios from 'axios';
+import React, { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { api } from '../lib/api';
+import {
+  CogIcon,
+  UserGroupIcon,
+  ChartBarIcon,
+  KeyIcon,
+  ShieldCheckIcon,
+  ClockIcon,
+  DocumentTextIcon,
+  ArrowPathIcon,
+  CheckCircleIcon,
+  ExclamationCircleIcon,
+  EyeIcon,
+  EyeSlashIcon
+} from '@heroicons/react/24/outline';
 
-const API_BASE_URL = (import.meta as any).env.VITE_API_URL || 'http://localhost:8000';
-
-interface AISetting {
-  id: number;
-  setting_key: string;
-  setting_value: string;
-  setting_type: string;
+interface SystemSetting {
+  id: string;
+  key: string;
+  value: string;
+  type: string;
   description: string;
   is_active: boolean;
   updated_at: string;
 }
 
-interface SystemSetting {
-  category: string;
-  key: string;
-  value: string;
-  label: string;
-  description: string;
-  data_type: string;
-  is_encrypted: boolean;
-  is_public: boolean;
-  requires_restart: boolean;
-  provider?: string;
+interface SystemStats {
+  total_users: number;
+  active_users_today: number;
+  total_messages_today: number;
+  total_uploads_today: number;
+  system_messages_used: number;
+  system_uploads_used: number;
+  system_message_limit: number;
+  system_upload_limit: number;
+  system_message_percentage: number;
+  system_upload_percentage: number;
 }
 
-type TabType = 'ai' | 'system' | 'database' | 'security';
+interface UserUsage {
+  user_id: string;
+  user_email: string;
+  user_name: string;
+  messages_used_today: number;
+  files_uploaded_today: number;
+  messages_limit: number;
+  uploads_limit: number;
+  has_personal_key: boolean;
+  last_active: string | null;
+  role: string;
+  status: string;
+}
 
-const UnifiedSettings: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<TabType>('ai');
-  
-  // AI Settings State
-  const [aiSettings, setAiSettings] = useState<AISetting[]>([]);
-  const [aiLoading, setAiLoading] = useState(false);
-  
-  // System Settings State
-  const [systemSettings, setSystemSettings] = useState<SystemSetting[]>([]);
-  const [systemLoading, setSystemLoading] = useState(false);
-  const [editedSystemValues, setEditedSystemValues] = useState<Record<string, string>>({});
-  
-  // Common State
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [editingKey, setEditingKey] = useState<string | null>(null);
-  const [editValue, setEditValue] = useState('');
-  const [testingConnection, setTestingConnection] = useState(false);
-  const [restartingServer, setRestartingServer] = useState(false);
+interface UsageHistory {
+  id: string;
+  user_email: string;
+  action_type: string;
+  used_personal_key: boolean;
+  tokens_used: number | null;
+  cost_usd: number | null;
+  timestamp: string;
+}
 
-  useEffect(() => {
-    if (activeTab === 'ai') {
-      fetchAISettings();
-    } else if (activeTab === 'system') {
-      fetchSystemSettings();
+const AdminSettings: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<'settings' | 'stats' | 'users' | 'history'>('settings');
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [editingSettings, setEditingSettings] = useState<Record<string, string>>({});
+  const queryClient = useQueryClient();
+
+  // Fetch all settings
+  const { data: settingsData, isLoading: settingsLoading } = useQuery({
+    queryKey: ['admin-settings'],
+    queryFn: async () => {
+      const response = await api.get('/admin/settings/all');
+      return response.data;
     }
-  }, [activeTab]);
+  });
 
-  const getToken = () => localStorage.getItem('access_token');
+  // Fetch system stats
+  const { data: statsData, isLoading: statsLoading } = useQuery({
+    queryKey: ['admin-stats'],
+    queryFn: async () => {
+      const response = await api.get<SystemStats>('/admin/stats/system');
+      return response.data;
+    },
+    refetchInterval: 30000 // Refresh every 30 seconds
+  });
 
-  // ==================== AI SETTINGS ====================
-  
-  const fetchAISettings = async () => {
-    try {
-      setAiLoading(true);
-      const token = getToken();
-      if (!token) {
-        setMessage({ type: 'error', text: 'يرجى تسجيل الدخول للوصول للإعدادات' });
-        return;
-      }
-      
-      const response = await axios.get(`${API_BASE_URL}/api/v1/ai-settings/settings`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setAiSettings(response.data);
-    } catch (error: any) {
-      console.error('Error fetching AI settings:', error);
-      if (error.response?.status === 401) {
-        setMessage({ type: 'error', text: 'انتهت الجلسة. يرجى تسجيل الدخول مجدداً' });
-      } else {
-        setMessage({ type: 'error', text: 'خطأ في تحميل إعدادات الذكاء الاصطناعي' });
-      }
-    } finally {
-      setAiLoading(false);
+  // Fetch user usage
+  const { data: usersData, isLoading: usersLoading } = useQuery({
+    queryKey: ['admin-users-usage'],
+    queryFn: async () => {
+      const response = await api.get<{ users: UserUsage[] }>('/admin/users/usage');
+      return response.data;
     }
-  };
+  });
 
-  const initializeAIDefaults = async () => {
-    try {
-      setSaving(true);
-      const token = getToken();
-      await axios.post(
-        `${API_BASE_URL}/api/v1/ai-settings/settings/initialize`,
-        {},
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      setMessage({ type: 'success', text: 'تم تهيئة الإعدادات الافتراضية بنجاح' });
-      fetchAISettings();
-    } catch (error: any) {
-      console.error('Error initializing defaults:', error);
-      setMessage({ type: 'error', text: 'خطأ في تهيئة الإعدادات الافتراضية' });
-    } finally {
-      setSaving(false);
+  // Fetch usage history
+  const { data: historyData, isLoading: historyLoading } = useQuery({
+    queryKey: ['admin-usage-history'],
+    queryFn: async () => {
+      const response = await api.get<{ history: UsageHistory[] }>('/admin/usage/history?limit=50');
+      return response.data;
     }
-  };
+  });
 
-  const startEditingAI = (setting: AISetting) => {
-    setEditingKey(setting.setting_key);
-    setEditValue(setting.setting_value);
-  };
-
-  const cancelEditingAI = () => {
-    setEditingKey(null);
-    setEditValue('');
-  };
-
-  const saveAISetting = async (key: string) => {
-    try {
-      setSaving(true);
-      const token = getToken();
-      await axios.put(
-        `${API_BASE_URL}/api/v1/ai-settings/settings/${key}`,
-        { setting_value: editValue },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      setMessage({ type: 'success', text: 'تم حفظ الإعداد بنجاح' });
-      setEditingKey(null);
-      fetchAISettings();
-    } catch (error: any) {
-      console.error('Error saving AI setting:', error);
-      setMessage({ type: 'error', text: 'خطأ في حفظ الإعداد' });
-    } finally {
-      setSaving(false);
+  // Update settings mutation
+  const updateSettingsMutation = useMutation({
+    mutationFn: async (settings: Array<{ setting_key: string; setting_value: string; description?: string }>) => {
+      const response = await api.post('/admin/settings/bulk-update', settings);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-settings'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-stats'] });
+      setEditingSettings({});
+      alert('Settings updated successfully!');
+    },
+    onError: (error: any) => {
+      alert(`Failed to update settings: ${error.response?.data?.detail || error.message}`);
     }
-  };
+  });
 
-  // ==================== SYSTEM SETTINGS ====================
-  
-  const fetchSystemSettings = async () => {
-    try {
-      setSystemLoading(true);
-      const response = await axios.get(`${API_BASE_URL}/api/v1/settings/`);
-      setSystemSettings(response.data);
-      
-      // Initialize edited values
-      const values: Record<string, string> = {};
-      response.data.forEach((setting: SystemSetting) => {
-        values[setting.key] = setting.value;
-      });
-      setEditedSystemValues(values);
-    } catch (err: any) {
-      console.error('Error fetching system settings:', err);
-      setMessage({ type: 'error', text: 'خطأ في تحميل إعدادات النظام' });
-    } finally {
-      setSystemLoading(false);
+  // Reset daily limits mutation
+  const resetLimitsMutation = useMutation({
+    mutationFn: async () => {
+      const response = await api.post('/admin/system/reset-daily-limits');
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-users-usage'] });
+      alert('Daily limits reset successfully!');
     }
+  });
+
+  const handleSettingChange = (key: string, value: string) => {
+    setEditingSettings(prev => ({ ...prev, [key]: value }));
   };
 
-  const updateSystemSetting = async (key: string, value: string) => {
-    try {
-      setSaving(true);
-      const token = getToken();
-      await axios.put(
-        `${API_BASE_URL}/api/v1/settings/${key}`,
-        { value },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      setMessage({ type: 'success', text: 'تم تحديث الإعداد بنجاح' });
-      fetchSystemSettings();
-    } catch (error: any) {
-      console.error('Error updating system setting:', error);
-      setMessage({ type: 'error', text: 'خطأ في تحديث الإعداد' });
-    } finally {
-      setSaving(false);
-    }
-  };
+  const handleSaveSettings = () => {
+    const updates = Object.entries(editingSettings).map(([key, value]) => ({
+      setting_key: key,
+      setting_value: value
+    }));
 
-  const testAIConnection = async () => {
-    try {
-      setTestingConnection(true);
-      const token = getToken();
-      await axios.post(
-        `${API_BASE_URL}/api/v1/settings/test-connection`,
-        {},
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      setMessage({ type: 'success', text: 'الاتصال بخدمة الذكاء الاصطناعي يعمل بنجاح ✓' });
-    } catch (error: any) {
-      setMessage({ type: 'error', text: 'فشل الاتصال بخدمة الذكاء الاصطناعي ✗' });
-    } finally {
-      setTestingConnection(false);
-    }
-  };
-
-  const restartServer = async () => {
-    if (!confirm('هل أنت متأكد من إعادة تشغيل الخادم؟ سيتم قطع الاتصال مؤقتاً.')) {
+    if (updates.length === 0) {
+      alert('No changes to save');
       return;
     }
+
+    updateSettingsMutation.mutate(updates);
+  };
+
+  const getCurrentValue = (setting: SystemSetting) => {
+    return editingSettings[setting.key] !== undefined 
+      ? editingSettings[setting.key] 
+      : setting.value;
+  };
+
+  const hasChanges = Object.keys(editingSettings).length > 0;
+
+  // Group settings by category
+  const groupedSettings = settingsData?.settings?.reduce((acc: Record<string, SystemSetting[]>, setting: SystemSetting) => {
+    let category = 'General';
     
-    try {
-      setRestartingServer(true);
-      const token = getToken();
-      await axios.post(
-        `${API_BASE_URL}/api/v1/settings/restart`,
-        {},
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      setMessage({ type: 'success', text: 'جاري إعادة تشغيل الخادم... يرجى الانتظار' });
-    } catch (error: any) {
-      setMessage({ type: 'error', text: 'خطأ في إعادة تشغيل الخادم' });
-    } finally {
-      setRestartingServer(false);
+    if (setting.key.includes('groq') || setting.key.includes('ai_model') || setting.key.includes('openrouter')) {
+      category = 'AI Configuration';
+    } else if (setting.key.includes('limit') || setting.key.includes('used')) {
+      category = 'Usage Limits';
+    } else if (setting.key.includes('require') || setting.key.includes('enforce')) {
+      category = 'Access Control';
+    } else if (setting.key.includes('default')) {
+      category = 'Default Settings';
     }
+    
+    if (!acc[category]) acc[category] = [];
+    acc[category].push(setting);
+    return acc;
+  }, {});
+
+  const renderSettingInput = (setting: SystemSetting) => {
+    const currentValue = getCurrentValue(setting);
+    
+    // Special handling for API keys
+    if (setting.key.includes('api_key')) {
+      return (
+        <div className="relative">
+          <input
+            type={showApiKey ? 'text' : 'password'}
+            value={currentValue}
+            onChange={(e) => handleSettingChange(setting.key, e.target.value)}
+            className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            placeholder="Enter API key..."
+          />
+          <button
+            type="button"
+            onClick={() => setShowApiKey(!showApiKey)}
+            className="absolute right-2 top-2 text-gray-500 hover:text-gray-700"
+          >
+            {showApiKey ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
+          </button>
+        </div>
+      );
+    }
+
+    // Boolean settings
+    if (setting.type === 'boolean') {
+      return (
+        <select
+          value={currentValue}
+          onChange={(e) => handleSettingChange(setting.key, e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+        >
+          <option value="true">Enabled</option>
+          <option value="false">Disabled</option>
+        </select>
+      );
+    }
+
+    // Number settings
+    if (setting.type === 'number') {
+      return (
+        <input
+          type="number"
+          value={currentValue}
+          onChange={(e) => handleSettingChange(setting.key, e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+          min="0"
+        />
+      );
+    }
+
+    // Text settings
+    return (
+      <input
+        type="text"
+        value={currentValue}
+        onChange={(e) => handleSettingChange(setting.key, e.target.value)}
+        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+      />
+    );
   };
 
-  // ==================== RENDER HELPERS ====================
-  
-  const getIconForSetting = (key: string) => {
-    if (key.includes('chat')) return <MessageSquare className="w-5 h-5 text-purple-500" />;
-    if (key.includes('resume') || key.includes('analysis')) return <FileText className="w-5 h-5 text-blue-500" />;
-    if (key.includes('temperature') || key.includes('token')) return <Zap className="w-5 h-5 text-yellow-500" />;
-    if (key.includes('api')) return <Key className="w-5 h-5 text-green-500" />;
-    if (key.includes('database')) return <Database className="w-5 h-5 text-indigo-500" />;
-    return <SettingsIcon className="w-5 h-5 text-gray-500" />;
-  };
-
-  const renderAISettings = () => (
+  const renderSettingsTab = () => (
     <div className="space-y-6">
-      {/* Header Actions */}
-      <div className="flex justify-between items-center">
+      {/* Header with Save Button */}
+      <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">إعدادات الذكاء الاصطناعي</h2>
-          <p className="text-gray-600 mt-1">إدارة تعليمات وسلوك الذكاء الاصطناعي</p>
+          <h2 className="text-2xl font-bold text-gray-900">System Settings</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            Configure all system settings without restarting the server
+          </p>
         </div>
-        <div className="flex gap-3">
+        {hasChanges && (
           <button
-            onClick={initializeAIDefaults}
-            disabled={saving}
-            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-400 flex items-center gap-2"
+            onClick={handleSaveSettings}
+            disabled={updateSettingsMutation.isPending}
+            className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
           >
-            <RefreshCw className={`w-4 h-4 ${saving ? 'animate-spin' : ''}`} />
-            تهيئة افتراضية
+            {updateSettingsMutation.isPending ? (
+              <>
+                <ArrowPathIcon className="h-5 w-5 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <CheckCircleIcon className="h-5 w-5" />
+                Save Changes ({Object.keys(editingSettings).length})
+              </>
+            )}
           </button>
-          <button
-            onClick={testAIConnection}
-            disabled={testingConnection}
-            className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:bg-gray-400 flex items-center gap-2"
-          >
-            <TestTube className={`w-4 h-4 ${testingConnection ? 'animate-pulse' : ''}`} />
-            اختبار الاتصال
-          </button>
-        </div>
+        )}
       </div>
 
-      {/* Settings List */}
-      {aiLoading ? (
-        <div className="text-center py-8">
-          <RefreshCw className="w-8 h-8 text-blue-500 animate-spin mx-auto" />
-          <p className="text-gray-600 mt-2">جاري التحميل...</p>
-        </div>
-      ) : aiSettings.length === 0 ? (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
-          <AlertCircle className="w-12 h-12 text-yellow-500 mx-auto mb-3" />
-          <p className="text-gray-700">لا توجد إعدادات. انقر على "تهيئة افتراضية" للبدء.</p>
+      {settingsLoading ? (
+        <div className="text-center py-12">
+          <ArrowPathIcon className="h-8 w-8 animate-spin mx-auto text-indigo-600" />
+          <p className="mt-2 text-gray-500">Loading settings...</p>
         </div>
       ) : (
-        <div className="grid gap-4">
-          {aiSettings.map((setting) => (
-            <div key={setting.id} className="bg-white border border-gray-200 rounded-lg p-5 hover:shadow-md transition">
-              <div className="flex items-start justify-between">
-                <div className="flex items-start gap-3 flex-1">
-                  {getIconForSetting(setting.setting_key)}
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-gray-800 mb-1">{setting.setting_key}</h3>
-                    <p className="text-sm text-gray-600 mb-3">{setting.description}</p>
-                    
-                    {editingKey === setting.setting_key ? (
-                      <div className="space-y-3">
-                        <textarea
-                          value={editValue}
-                          onChange={(e) => setEditValue(e.target.value)}
-                          rows={setting.setting_type === 'text' ? 10 : 3}
-                          className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
-                          dir="ltr"
-                        />
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => saveAISetting(setting.setting_key)}
-                            disabled={saving}
-                            className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:bg-gray-400 flex items-center gap-2"
-                          >
-                            <Save className="w-4 h-4" />
-                            حفظ
-                          </button>
-                          <button
-                            onClick={cancelEditingAI}
-                            className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
-                          >
-                            إلغاء
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <div className="bg-gray-50 p-3 rounded border border-gray-200">
-                          <pre className="whitespace-pre-wrap text-sm text-gray-700 font-mono" dir="ltr">
-                            {setting.setting_value}
-                          </pre>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-gray-500">
-                            آخر تحديث: {new Date(setting.updated_at).toLocaleString('ar-EG')}
-                          </span>
-                          <button
-                            onClick={() => startEditingAI(setting)}
-                            className="text-blue-600 hover:text-blue-700 text-sm font-medium"
-                          >
-                            تعديل
-                          </button>
-                        </div>
-                      </div>
-                    )}
+        <div className="space-y-8">
+          {Object.entries(groupedSettings || {}).map(([category, settings]) => (
+            <div key={category} className="bg-white rounded-lg shadow-sm border border-gray-200">
+              <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+                <h3 className="text-lg font-semibold text-gray-900">{category}</h3>
+              </div>
+              <div className="px-6 py-4 space-y-4">
+                {(settings as SystemSetting[]).map((setting: SystemSetting) => (
+                  <div key={setting.id} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">
+                        {setting.key.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
+                      </label>
+                      <p className="mt-1 text-xs text-gray-500">{setting.description}</p>
+                      <p className="mt-1 text-xs text-gray-400">
+                        Last updated: {new Date(setting.updated_at).toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="md:col-span-2">
+                      {renderSettingInput(setting)}
+                    </div>
                   </div>
-                </div>
+                ))}
               </div>
             </div>
           ))}
@@ -334,185 +312,402 @@ const UnifiedSettings: React.FC = () => {
     </div>
   );
 
-  const renderSystemSettings = () => {
-    const categories = Array.from(new Set(systemSettings.map(s => s.category)));
-    
-    return (
-      <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-800">إعدادات النظام</h2>
-            <p className="text-gray-600 mt-1">إعدادات قاعدة البيانات ومزود الخدمة والأمان</p>
-          </div>
-          <button
-            onClick={restartServer}
-            disabled={restartingServer}
-            className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:bg-gray-400 flex items-center gap-2"
-          >
-            <Power className={`w-4 h-4 ${restartingServer ? 'animate-spin' : ''}`} />
-            إعادة تشغيل الخادم
-          </button>
-        </div>
+  const renderStatsTab = () => (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold text-gray-900">System Statistics</h2>
+        <p className="mt-1 text-sm text-gray-500">Real-time monitoring of system usage and performance</p>
+      </div>
 
-        {systemLoading ? (
-          <div className="text-center py-8">
-            <RefreshCw className="w-8 h-8 text-blue-500 animate-spin mx-auto" />
-            <p className="text-gray-600 mt-2">جاري التحميل...</p>
-          </div>
-        ) : (
-          <div className="space-y-6">
-            {categories.map((category) => (
-              <div key={category} className="bg-white border border-gray-200 rounded-lg p-6">
-                <h3 className="text-lg font-semibold text-gray-800 mb-4 capitalize">
-                  {category.replace('_', ' ')}
-                </h3>
-                <div className="space-y-4">
-                  {systemSettings
-                    .filter((s) => s.category === category)
-                    .map((setting) => (
-                      <div key={setting.key} className="border-b border-gray-100 last:border-0 pb-4 last:pb-0">
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex-1">
-                            <label className="block font-medium text-gray-700 mb-1">
-                              {setting.label}
-                              {setting.requires_restart && (
-                                <span className="ml-2 text-xs text-red-500">(يتطلب إعادة تشغيل)</span>
-                              )}
-                            </label>
-                            <p className="text-sm text-gray-500 mb-2">{setting.description}</p>
-                            {setting.data_type === 'boolean' ? (
-                              <select
-                                value={editedSystemValues[setting.key] || setting.value}
-                                onChange={(e) => {
-                                  setEditedSystemValues({
-                                    ...editedSystemValues,
-                                    [setting.key]: e.target.value
-                                  });
-                                }}
-                                className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                              >
-                                <option value="true">نعم</option>
-                                <option value="false">لا</option>
-                              </select>
-                            ) : setting.is_encrypted ? (
-                              <input
-                                type="password"
-                                value={editedSystemValues[setting.key] || setting.value}
-                                onChange={(e) => {
-                                  setEditedSystemValues({
-                                    ...editedSystemValues,
-                                    [setting.key]: e.target.value
-                                  });
-                                }}
-                                className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                dir="ltr"
-                              />
-                            ) : (
-                              <input
-                                type="text"
-                                value={editedSystemValues[setting.key] || setting.value}
-                                onChange={(e) => {
-                                  setEditedSystemValues({
-                                    ...editedSystemValues,
-                                    [setting.key]: e.target.value
-                                  });
-                                }}
-                                className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                dir="ltr"
-                              />
-                            )}
-                          </div>
-                          <button
-                            onClick={() => updateSystemSetting(setting.key, editedSystemValues[setting.key])}
-                            disabled={saving || editedSystemValues[setting.key] === setting.value}
-                            className="mt-6 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
-                          >
-                            <Save className="w-4 h-4" />
-                            حفظ
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+      {statsLoading ? (
+        <div className="text-center py-12">
+          <ArrowPathIcon className="h-8 w-8 animate-spin mx-auto text-indigo-600" />
+          <p className="mt-2 text-gray-500">Loading statistics...</p>
+        </div>
+      ) : (
+        <>
+          {/* Quick Stats */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-500">Total Users</p>
+                  <p className="mt-1 text-3xl font-bold text-gray-900">{statsData?.total_users || 0}</p>
                 </div>
+                <UserGroupIcon className="h-10 w-10 text-blue-500" />
               </div>
-            ))}
+            </div>
+
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-500">Active Today</p>
+                  <p className="mt-1 text-3xl font-bold text-gray-900">{statsData?.active_users_today || 0}</p>
+                </div>
+                <ChartBarIcon className="h-10 w-10 text-green-500" />
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-500">Messages Today</p>
+                  <p className="mt-1 text-3xl font-bold text-gray-900">{statsData?.total_messages_today || 0}</p>
+                </div>
+                <DocumentTextIcon className="h-10 w-10 text-purple-500" />
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-500">Uploads Today</p>
+                  <p className="mt-1 text-3xl font-bold text-gray-900">{statsData?.total_uploads_today || 0}</p>
+                </div>
+                <KeyIcon className="h-10 w-10 text-orange-500" />
+              </div>
+            </div>
           </div>
-        )}
-      </div>
-    );
-  };
 
-  // ==================== MAIN RENDER ====================
-  
-  return (
-    <div className="max-w-7xl mx-auto p-6">
-      {/* Message Display */}
-      {message && (
-        <div className={`mb-6 p-4 rounded-lg flex items-center gap-3 ${
-          message.type === 'success' ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'
-        }`}>
-          {message.type === 'success' ? (
-            <CheckCircle className="w-5 h-5 text-green-500" />
-          ) : (
-            <AlertCircle className="w-5 h-5 text-red-500" />
-          )}
-          <span className={message.type === 'success' ? 'text-green-700' : 'text-red-700'}>
-            {message.text}
-          </span>
-          <button
-            onClick={() => setMessage(null)}
-            className="ml-auto text-gray-500 hover:text-gray-700"
-          >
-            ✕
-          </button>
-        </div>
-      )}
-
-      {/* Tabs */}
-      <div className="mb-6 border-b border-gray-200">
-        <div className="flex gap-1">
-          {[
-            { id: 'ai' as TabType, label: 'الذكاء الاصطناعي', icon: Zap },
-            { id: 'system' as TabType, label: 'النظام', icon: SettingsIcon },
-            { id: 'database' as TabType, label: 'قاعدة البيانات', icon: Database },
-            { id: 'security' as TabType, label: 'الأمان', icon: Shield }
-          ].map((tab) => {
-            const Icon = tab.icon;
-            return (
+          {/* System Limits Usage */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">System-Wide Limits</h3>
               <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-6 py-3 font-medium transition border-b-2 ${
-                  activeTab === tab.id
-                    ? 'text-blue-600 border-blue-600'
-                    : 'text-gray-600 border-transparent hover:text-gray-800'
-                }`}
+                onClick={() => resetLimitsMutation.mutate()}
+                disabled={resetLimitsMutation.isPending}
+                className="flex items-center gap-2 px-4 py-2 text-sm bg-red-50 text-red-700 rounded-lg hover:bg-red-100 disabled:opacity-50"
               >
-                <Icon className="w-5 h-5" />
-                {tab.label}
+                <ArrowPathIcon className={`h-4 w-4 ${resetLimitsMutation.isPending ? 'animate-spin' : ''}`} />
+                Reset Daily Limits
               </button>
-            );
-          })}
-        </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-gray-700">AI Messages</span>
+                  <span className="text-sm text-gray-500">
+                    {statsData?.system_messages_used || 0} / {statsData?.system_message_limit || 0}
+                  </span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-3">
+                  <div
+                    className={`h-3 rounded-full transition-all ${
+                      (statsData?.system_message_percentage || 0) > 90 
+                        ? 'bg-red-500' 
+                        : (statsData?.system_message_percentage || 0) > 70 
+                        ? 'bg-yellow-500' 
+                        : 'bg-green-500'
+                    }`}
+                    style={{ width: `${Math.min(statsData?.system_message_percentage || 0, 100)}%` }}
+                  />
+                </div>
+                <p className="mt-1 text-xs text-gray-500">
+                  {statsData?.system_message_percentage || 0}% used
+                </p>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-gray-700">File Uploads</span>
+                  <span className="text-sm text-gray-500">
+                    {statsData?.system_uploads_used || 0} / {statsData?.system_upload_limit || 0}
+                  </span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-3">
+                  <div
+                    className={`h-3 rounded-full transition-all ${
+                      (statsData?.system_upload_percentage || 0) > 90 
+                        ? 'bg-red-500' 
+                        : (statsData?.system_upload_percentage || 0) > 70 
+                        ? 'bg-yellow-500' 
+                        : 'bg-green-500'
+                    }`}
+                    style={{ width: `${Math.min(statsData?.system_upload_percentage || 0, 100)}%` }}
+                  />
+                </div>
+                <p className="mt-1 text-xs text-gray-500">
+                  {statsData?.system_upload_percentage || 0}% used
+                </p>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+
+  const renderUsersTab = () => (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold text-gray-900">Usage Tracking</h2>
+        <p className="mt-1 text-sm text-gray-500">
+          Monitor individual user limits and usage. To manage users (create, edit, delete, roles), go to{' '}
+          <a href="/admin/users" className="text-indigo-600 hover:text-indigo-800 font-medium underline">
+            User Management
+          </a>
+        </p>
       </div>
 
-      {/* Tab Content */}
-      {activeTab === 'ai' && renderAISettings()}
-      {activeTab === 'system' && renderSystemSettings()}
-      {activeTab === 'database' && (
-        <div className="bg-white border border-gray-200 rounded-lg p-8 text-center">
-          <Database className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <p className="text-gray-600">إعدادات قاعدة البيانات قيد التطوير</p>
+      {usersLoading ? (
+        <div className="text-center py-12">
+          <ArrowPathIcon className="h-8 w-8 animate-spin mx-auto text-indigo-600" />
+          <p className="mt-2 text-gray-500">Loading users...</p>
         </div>
-      )}
-      {activeTab === 'security' && (
-        <div className="bg-white border border-gray-200 rounded-lg p-8 text-center">
-          <Shield className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <p className="text-gray-600">إعدادات الأمان قيد التطوير</p>
+      ) : (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    User
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Role
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Messages
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Uploads
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Personal Key
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Last Active
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {usersData?.users?.map((user: UserUsage) => (
+                  <tr key={user.user_id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">{user.user_name}</div>
+                        <div className="text-sm text-gray-500">{user.user_email}</div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 py-1 text-xs rounded-full ${
+                        user.role === 'admin' 
+                          ? 'bg-purple-100 text-purple-800' 
+                          : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {user.role}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">
+                        {user.messages_used_today} / {user.messages_limit}
+                      </div>
+                      <div className="w-24 bg-gray-200 rounded-full h-2 mt-1">
+                        <div
+                          className="bg-indigo-500 h-2 rounded-full"
+                          style={{ width: `${Math.min((user.messages_used_today / user.messages_limit) * 100, 100)}%` }}
+                        />
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">
+                        {user.files_uploaded_today} / {user.uploads_limit}
+                      </div>
+                      <div className="w-24 bg-gray-200 rounded-full h-2 mt-1">
+                        <div
+                          className="bg-green-500 h-2 rounded-full"
+                          style={{ width: `${Math.min((user.files_uploaded_today / user.uploads_limit) * 100, 100)}%` }}
+                        />
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {user.has_personal_key ? (
+                        <CheckCircleIcon className="h-5 w-5 text-green-500" />
+                      ) : (
+                        <ExclamationCircleIcon className="h-5 w-5 text-gray-300" />
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {user.last_active ? new Date(user.last_active).toLocaleDateString() : 'Never'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
   );
+
+  const renderHistoryTab = () => (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold text-gray-900">Usage History</h2>
+        <p className="mt-1 text-sm text-gray-500">Track all AI operations and file uploads</p>
+      </div>
+
+      {historyLoading ? (
+        <div className="text-center py-12">
+          <ArrowPathIcon className="h-8 w-8 animate-spin mx-auto text-indigo-600" />
+          <p className="mt-2 text-gray-500">Loading history...</p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Time
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    User
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Action
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    API Key Used
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Tokens
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Cost
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {historyData?.history?.map((record: UsageHistory) => (
+                  <tr key={record.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {new Date(record.timestamp).toLocaleString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {record.user_email}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 py-1 text-xs rounded-full ${
+                        record.action_type === 'ai_message' 
+                          ? 'bg-blue-100 text-blue-800' 
+                          : record.action_type === 'file_upload'
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-purple-100 text-purple-800'
+                      }`}>
+                        {record.action_type}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 py-1 text-xs rounded-full ${
+                        record.used_personal_key 
+                          ? 'bg-green-100 text-green-800' 
+                          : 'bg-orange-100 text-orange-800'
+                      }`}>
+                        {record.used_personal_key ? 'Personal' : 'System'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {record.tokens_used || '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {record.cost_usd ? `$${record.cost_usd.toFixed(4)}` : '-'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center gap-3">
+            <ShieldCheckIcon className="h-10 w-10 text-indigo-600" />
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Admin Control Panel</h1>
+              <p className="mt-1 text-sm text-gray-500">
+                Full system control and monitoring dashboard
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="mb-6">
+          <div className="border-b border-gray-200">
+            <nav className="-mb-px flex space-x-8">
+              <button
+                onClick={() => setActiveTab('settings')}
+                className={`flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  activeTab === 'settings'
+                    ? 'border-indigo-500 text-indigo-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <CogIcon className="h-5 w-5" />
+                Settings
+              </button>
+
+              <button
+                onClick={() => setActiveTab('stats')}
+                className={`flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  activeTab === 'stats'
+                    ? 'border-indigo-500 text-indigo-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <ChartBarIcon className="h-5 w-5" />
+                Statistics
+              </button>
+
+              <button
+                onClick={() => setActiveTab('users')}
+                className={`flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  activeTab === 'users'
+                    ? 'border-indigo-500 text-indigo-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <UserGroupIcon className="h-5 w-5" />
+                <div className="flex flex-col items-start">
+                  <span>Usage Tracking</span>
+                  <span className="text-xs font-normal text-gray-400">Monitor user activity</span>
+                </div>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('history')}
+                className={`flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  activeTab === 'history'
+                    ? 'border-indigo-500 text-indigo-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <ClockIcon className="h-5 w-5" />
+                Usage History
+              </button>
+            </nav>
+          </div>
+        </div>
+
+        {/* Tab Content */}
+        <div>
+          {activeTab === 'settings' && renderSettingsTab()}
+          {activeTab === 'stats' && renderStatsTab()}
+          {activeTab === 'users' && renderUsersTab()}
+          {activeTab === 'history' && renderHistoryTab()}
+        </div>
+      </div>
+    </div>
+  );
 };
 
-export default UnifiedSettings;
+export default AdminSettings;
