@@ -22,16 +22,52 @@ class CandidateCreate(CandidateBase):
 
 
 class CandidateUpdate(BaseModel):
+    # Basic Info
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     email: Optional[EmailStr] = None
     phone: Optional[str] = None
+    
+    # Location & Mobility
     current_location: Optional[str] = None
-    summary: Optional[str] = None
-    linkedin_url: Optional[HttpUrl] = None
-    github_url: Optional[HttpUrl] = None
-    portfolio_url: Optional[HttpUrl] = None
+    preferred_locations: Optional[List[str]] = None
+    open_to_relocation: Optional[bool] = None
+    willing_to_travel: Optional[bool] = None
+    
+    # Professional Summary
+    professional_summary: Optional[str] = None
+    career_level: Optional[str] = None
+    years_of_experience: Optional[int] = None
+    
+    # Availability
+    availability: Optional[str] = None  # Maps to availability_status
+    notice_period_days: Optional[int] = None
+    
+    # Compensation (handle both old and new field names)
+    expected_salary_min: Optional[int] = None  # Will map to expected_salary_amount
+    expected_salary_max: Optional[int] = None  # Additional field
+    salary_currency: Optional[str] = None  # Will map to expected_salary_currency
+    expected_salary_currency: Optional[str] = None
+    expected_salary_amount: Optional[float] = None
+    current_salary_currency: Optional[str] = None
+    current_salary_amount: Optional[float] = None
+    
+    # Social & Portfolio
+    linkedin_url: Optional[str] = None
+    github_url: Optional[str] = None
+    portfolio_url: Optional[str] = None
+    personal_website: Optional[str] = None
+    
+    # Status
     status: Optional[str] = None
+    
+    # Related data (for complete updates)
+    skills: Optional[List[dict]] = None
+    work_experiences: Optional[List[dict]] = None
+    education: Optional[List[dict]] = None
+    projects: Optional[List[dict]] = None
+    certifications: Optional[List[dict]] = None
+    languages: Optional[List[dict]] = None
 
 
 class CandidateResponse(CandidateBase):

@@ -14,6 +14,8 @@ from app.schemas.schemas import (
     CandidateUpdate, 
     CandidateResponse
 )
+from app.core.auth import get_current_user
+from app.db.models_users import User
 
 router = APIRouter()
 
@@ -241,9 +243,10 @@ def get_candidate(
 def update_candidate(
     candidate_id: UUID,
     candidate_update: CandidateUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
-    """Update a candidate"""
+    """Update a candidate with complete data including related entities"""
     candidate = db.query(models.Candidate).filter(
         models.Candidate.id == candidate_id
     ).first()
@@ -254,14 +257,152 @@ def update_candidate(
             detail="Candidate not found"
         )
     
-    # Update only provided fields
-    update_data = candidate_update.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(candidate, field, value)
-    
-    db.commit()
-    db.refresh(candidate)
-    return candidate
+    try:
+        # Update basic candidate fields
+        update_data = candidate_update.model_dump(exclude_unset=True, exclude={
+            'skills', 'work_experiences', 'education', 'projects', 'certifications', 'languages'
+        })
+        
+        # Handle field mappings for compatibility
+        if 'availability' in update_data:
+            update_data['availability_status'] = update_data.pop('availability')
+        
+        if 'expected_salary_min' in update_data:
+            update_data['expected_salary_amount'] = update_data.pop('expected_salary_min')
+            
+        if 'salary_currency' in update_data:
+            update_data['expected_salary_currency'] = update_data.pop('salary_currency')
+        
+        # Update candidate fields
+        for field, value in update_data.items():
+            if hasattr(candidate, field):
+                setattr(candidate, field, value)
+        
+        # Update related data if provided
+        update_data_full = candidate_update.model_dump(exclude_unset=True)
+        
+        # Update Skills
+        if 'skills' in update_data_full and update_data_full['skills'] is not None:
+            # Delete existing skills
+            db.query(models.Skill).filter(models.Skill.candidate_id == candidate_id).delete()
+            
+            # Add new skills
+            for skill_data in update_data_full['skills']:
+                skill = models.Skill(
+                    candidate_id=candidate_id,
+                    skill_name=skill_data.get('skill_name', ''),
+                    proficiency_level=skill_data.get('proficiency_level', 'Intermediate'),
+                    years_of_experience=skill_data.get('years_of_experience', 0),
+                    skill_category=skill_data.get('category', 'Technical')
+                )
+                db.add(skill)
+        
+        # Update Work Experiences
+        if 'work_experiences' in update_data_full and update_data_full['work_experiences'] is not None:
+            # Delete existing work experiences
+            db.query(models.WorkExperience).filter(models.WorkExperience.candidate_id == candidate_id).delete()
+            
+            # Add new work experiences
+            for exp_data in update_data_full['work_experiences']:
+                exp = models.WorkExperience(
+                    candidate_id=candidate_id,
+                    company_name=exp_data.get('company_name', ''),
+                    position=exp_data.get('position', ''),
+                    start_date=datetime.strptime(exp_data['start_date'], '%Y-%m-%d').date() if exp_data.get('start_date') else None,
+                    end_date=datetime.strptime(exp_data['end_date'], '%Y-%m-%d').date() if exp_data.get('end_date') else None,
+                    responsibilities=exp_data.get('responsibilities'),
+                    achievements=exp_data.get('achievements'),
+                    employment_type=exp_data.get('employment_type', 'Full-time')
+                )
+                db.add(exp)
+        
+        # Update Education
+        if 'education' in update_data_full and update_data_full['education'] is not None:
+            # Delete existing education
+            db.query(models.Education).filter(models.Education.candidate_id == candidate_id).delete()
+            
+            # Add new education
+            for edu_data in update_data_full['education']:
+                edu = models.Education(
+                    candidate_id=candidate_id,
+                    institution_name=edu_data.get('institution_name', ''),
+                    degree=edu_data.get('degree', ''),
+                    field_of_study=edu_data.get('field_of_study'),
+                    start_date=datetime.strptime(edu_data['start_date'], '%Y-%m-%d').date() if edu_data.get('start_date') else None,
+                    end_date=datetime.strptime(edu_data['end_date'], '%Y-%m-%d').date() if edu_data.get('end_date') else None,
+                    grade=edu_data.get('grade')
+                )
+                db.add(edu)
+        
+        # Update Projects
+        if 'projects' in update_data_full and update_data_full['projects'] is not None:
+            # Delete existing projects
+            db.query(models.Project).filter(models.Project.candidate_id == candidate_id).delete()
+            
+            # Add new projects
+            for proj_data in update_data_full['projects']:
+                proj = models.Project(
+                    candidate_id=candidate_id,
+                    project_name=proj_data.get('project_name', ''),
+                    description=proj_data.get('description'),
+                    technologies_used=proj_data.get('technologies_used', []),
+                    role=proj_data.get('role'),
+                    start_date=datetime.strptime(proj_data['start_date'], '%Y-%m-%d').date() if proj_data.get('start_date') else None,
+                    end_date=datetime.strptime(proj_data['end_date'], '%Y-%m-%d').date() if proj_data.get('end_date') else None,
+                    project_url=proj_data.get('project_url')
+                )
+                db.add(proj)
+        
+        # Update Certifications
+        if 'certifications' in update_data_full and update_data_full['certifications'] is not None:
+            # Delete existing certifications
+            db.query(models.Certification).filter(models.Certification.candidate_id == candidate_id).delete()
+            
+            # Add new certifications
+            for cert_data in update_data_full['certifications']:
+                cert = models.Certification(
+                    candidate_id=candidate_id,
+                    certification_name=cert_data.get('certification_name', ''),
+                    issuing_organization=cert_data.get('issuing_organization', ''),
+                    issue_date=datetime.strptime(cert_data['issue_date'], '%Y-%m-%d').date() if cert_data.get('issue_date') else None,
+                    expiry_date=datetime.strptime(cert_data['expiry_date'], '%Y-%m-%d').date() if cert_data.get('expiry_date') else None,
+                    credential_id=cert_data.get('credential_id'),
+                    credential_url=cert_data.get('credential_url')
+                )
+                db.add(cert)
+        
+        # Update Languages
+        if 'languages' in update_data_full and update_data_full['languages'] is not None:
+            # Delete existing languages
+            db.query(models.Language).filter(models.Language.candidate_id == candidate_id).delete()
+            
+            # Add new languages
+            for lang_data in update_data_full['languages']:
+                lang = models.Language(
+                    candidate_id=candidate_id,
+                    language_name=lang_data.get('language_name', ''),
+                    proficiency_level=lang_data.get('proficiency_level', 'Intermediate')
+                )
+                db.add(lang)
+        
+        # Update the updated_at timestamp
+        candidate.updated_at = datetime.utcnow()
+        
+        db.commit()
+        db.refresh(candidate)
+        
+        # Return the updated candidate with all related data
+        return get_candidate(candidate_id, db)
+        
+    except Exception as e:
+        db.rollback()
+        print(f"Error updating candidate: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Error updating candidate: {str(e)}"
+        )
 
 
 @router.delete("/{candidate_id}", status_code=status.HTTP_204_NO_CONTENT)
