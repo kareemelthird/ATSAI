@@ -1,11 +1,8 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useEffect } from 'react';
 import { candidateApi } from '@/lib/api';
-import { Save, ArrowLeft, Plus, Trash2, AlertCircle, CheckCircle } from 'lucide-react';
-import axios from 'axios';
-
-const API_BASE_URL = (import.meta as any).env.VITE_API_URL || 'http://localhost:8000';
+import { Save, ArrowLeft, Plus, Trash2, AlertCircle, CheckCircle, User, Mail, Phone, MapPin, Briefcase, GraduationCap, Award, Languages, Settings } from 'lucide-react';
 
 interface Skill {
   id?: string;
@@ -63,14 +60,39 @@ interface Language {
   proficiency_level: string;
 }
 
+interface CandidateFormData {
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+  current_location: string;
+  professional_summary: string;
+  career_level: string;
+  years_of_experience: number;
+  linkedin_url: string;
+  github_url: string;
+  portfolio_url: string;
+  preferred_locations: string[];
+  open_to_relocation: boolean;
+  willing_to_travel: boolean;
+  expected_salary_min: number;
+  expected_salary_max: number;
+  salary_currency: string;
+  availability: string;
+  notice_period_days: number;
+}
+
 export default function EditCandidate() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [activeSection, setActiveSection] = useState('basic');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Basic Info State
-  const [formData, setFormData] = useState({
+  // Form Data State
+  const [formData, setFormData] = useState<CandidateFormData>({
     first_name: '',
     last_name: '',
     email: '',
@@ -82,7 +104,7 @@ export default function EditCandidate() {
     linkedin_url: '',
     github_url: '',
     portfolio_url: '',
-    preferred_locations: [] as string[],
+    preferred_locations: [],
     open_to_relocation: false,
     willing_to_travel: false,
     expected_salary_min: 0,
@@ -101,108 +123,151 @@ export default function EditCandidate() {
   const [languages, setLanguages] = useState<Language[]>([]);
 
   // Load candidate data
-  const { data: candidate, isLoading } = useQuery({
+  const { data: candidate, isLoading, error } = useQuery({
     queryKey: ['candidate', id],
     queryFn: () => candidateApi.getById(id!),
-    enabled: !!id
+    enabled: !!id,
+    refetchOnWindowFocus: false
   });
 
-  useEffect(() => {
-    if (candidate) {
-      setFormData({
-        first_name: candidate.first_name || '',
-        last_name: candidate.last_name || '',
-        email: candidate.email || '',
-        phone: candidate.phone || '',
-        current_location: candidate.current_location || '',
-        professional_summary: candidate.professional_summary || '',
-        career_level: candidate.career_level || '',
-        years_of_experience: candidate.years_of_experience || 0,
-        linkedin_url: candidate.linkedin_url || '',
-        github_url: candidate.github_url || '',
-        portfolio_url: candidate.portfolio_url || '',
-        preferred_locations: candidate.preferred_locations || [],
-        open_to_relocation: candidate.open_to_relocation || false,
-        willing_to_travel: candidate.willing_to_travel || false,
-        expected_salary_min: candidate.expected_salary_min || 0,
-        expected_salary_max: candidate.expected_salary_max || 0,
-        salary_currency: candidate.salary_currency || 'USD',
-        availability: candidate.availability || '',
-        notice_period_days: candidate.notice_period_days || 0
+  // Update mutation
+  const updateCandidateMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const token = localStorage.getItem('access_token');
+      const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${API_BASE_URL}/api/v1/candidates/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(data)
       });
-      setSkills(candidate.skills || []);
-      setWorkExperiences(candidate.work_experiences || []);
-      setEducation(candidate.education || []);
-      setProjects(candidate.projects || []);
-      setCertifications(candidate.certifications || []);
-      setLanguages(candidate.languages || []);
+      
+      if (!response.ok) {
+        throw new Error('Failed to update candidate');
+      }
+      
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['candidate', id] });
+      queryClient.invalidateQueries({ queryKey: ['candidates'] });
+      setMessage({ type: 'success', text: 'Profile updated successfully!' });
+      setTimeout(() => {
+        navigate(`/candidates/${id}`);
+      }, 2000);
+    },
+    onError: (error) => {
+      console.error('Update error:', error);
+      setMessage({ type: 'error', text: 'Failed to update profile. Please try again.' });
+    }
+  });
+
+  // Load data into form when candidate data is available
+  useEffect(() => {
+    if (candidate?.data) {
+      const candidateData = candidate.data;
+      console.log('Loading candidate data:', candidateData);
+      
+      setFormData({
+        first_name: candidateData.first_name || '',
+        last_name: candidateData.last_name || '',
+        email: candidateData.email || '',
+        phone: candidateData.phone || '',
+        current_location: candidateData.current_location || '',
+        professional_summary: candidateData.professional_summary || '',
+        career_level: candidateData.career_level || '',
+        years_of_experience: candidateData.years_of_experience || 0,
+        linkedin_url: candidateData.linkedin_url || '',
+        github_url: candidateData.github_url || '',
+        portfolio_url: candidateData.portfolio_url || '',
+        preferred_locations: Array.isArray(candidateData.preferred_locations) ? candidateData.preferred_locations : [],
+        open_to_relocation: candidateData.open_to_relocation || false,
+        willing_to_travel: candidateData.willing_to_travel || false,
+        expected_salary_min: candidateData.expected_salary_min || 0,
+        expected_salary_max: candidateData.expected_salary_max || 0,
+        salary_currency: candidateData.salary_currency || 'USD',
+        availability: candidateData.availability || '',
+        notice_period_days: candidateData.notice_period_days || 0
+      });
+
+      setSkills(candidateData.skills || []);
+      setWorkExperiences(candidateData.work_experiences || []);
+      setEducation(candidateData.education || []);
+      setProjects(candidateData.projects || []);
+      setCertifications(candidateData.certifications || []);
+      setLanguages(candidateData.languages || []);
+    } else if (candidate && typeof candidate === 'object' && !candidate.data) {
+      // Handle case where candidate is returned directly (not wrapped in data)
+      console.log('Loading candidate data (direct):', candidate);
+      
+      setFormData({
+        first_name: (candidate as any).first_name || '',
+        last_name: (candidate as any).last_name || '',
+        email: (candidate as any).email || '',
+        phone: (candidate as any).phone || '',
+        current_location: (candidate as any).current_location || '',
+        professional_summary: (candidate as any).professional_summary || '',
+        career_level: (candidate as any).career_level || '',
+        years_of_experience: (candidate as any).years_of_experience || 0,
+        linkedin_url: (candidate as any).linkedin_url || '',
+        github_url: (candidate as any).github_url || '',
+        portfolio_url: (candidate as any).portfolio_url || '',
+        preferred_locations: Array.isArray((candidate as any).preferred_locations) ? (candidate as any).preferred_locations : [],
+        open_to_relocation: (candidate as any).open_to_relocation || false,
+        willing_to_travel: (candidate as any).willing_to_travel || false,
+        expected_salary_min: (candidate as any).expected_salary_min || 0,
+        expected_salary_max: (candidate as any).expected_salary_max || 0,
+        salary_currency: (candidate as any).salary_currency || 'USD',
+        availability: (candidate as any).availability || '',
+        notice_period_days: (candidate as any).notice_period_days || 0
+      });
+
+      setSkills((candidate as any).skills || []);
+      setWorkExperiences((candidate as any).work_experiences || []);
+      setEducation((candidate as any).education || []);
+      setProjects((candidate as any).projects || []);
+      setCertifications((candidate as any).certifications || []);
+      setLanguages((candidate as any).languages || []);
     }
   }, [candidate]);
 
   const handleSave = async () => {
+    if (isSubmitting) return;
+    
+    setIsSubmitting(true);
+    setMessage(null);
+
     try {
-      const token = localStorage.getItem('access_token');
-      
-      // Update basic info
-      await axios.put(
-        `${API_BASE_URL}/api/v1/candidates/${id}`,
-        formData,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      // Prepare complete data payload
+      const completeData = {
+        ...formData,
+        skills,
+        work_experiences: workExperiences,
+        education,
+        projects,
+        certifications,
+        languages
+      };
 
-      // Update skills
-      await axios.put(
-        `${API_BASE_URL}/api/v1/candidates/${id}/skills`,
-        { skills },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      // Update work experiences
-      await axios.put(
-        `${API_BASE_URL}/api/v1/candidates/${id}/work-experiences`,
-        { work_experiences: workExperiences },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      // Update education
-      await axios.put(
-        `${API_BASE_URL}/api/v1/candidates/${id}/education`,
-        { education },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      // Update projects
-      await axios.put(
-        `${API_BASE_URL}/api/v1/candidates/${id}/projects`,
-        { projects },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      // Update certifications
-      await axios.put(
-        `${API_BASE_URL}/api/v1/candidates/${id}/certifications`,
-        { certifications },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      // Update languages
-      await axios.put(
-        `${API_BASE_URL}/api/v1/candidates/${id}/languages`,
-        { languages },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      setMessage({ type: 'success', text: 'تم حفظ التعديلات بنجاح ✓' });
-      setTimeout(() => navigate(`/candidates/${id}`), 2000);
-    } catch (error: any) {
-      console.error('Error saving candidate:', error);
-      setMessage({ type: 'error', text: 'خطأ في حفظ التعديلات' });
+      await updateCandidateMutation.mutateAsync(completeData);
+    } catch (error) {
+      console.error('Save error:', error);
+      setMessage({ type: 'error', text: 'Failed to save changes. Please try again.' });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   // Add/Remove handlers
   const addSkill = () => {
-    setSkills([...skills, { skill_name: '', proficiency_level: 'Intermediate', years_of_experience: 0, category: 'Technical' }]);
+    setSkills([...skills, { 
+      skill_name: '', 
+      proficiency_level: 'Intermediate', 
+      years_of_experience: 0, 
+      category: 'Technical' 
+    }]);
   };
 
   const removeSkill = (index: number) => {
@@ -223,7 +288,11 @@ export default function EditCandidate() {
   };
 
   const addEducation = () => {
-    setEducation([...education, { institution_name: '', degree: '', start_date: '' }]);
+    setEducation([...education, { 
+      institution_name: '', 
+      degree: '', 
+      start_date: '' 
+    }]);
   };
 
   const removeEducation = (index: number) => {
@@ -231,7 +300,10 @@ export default function EditCandidate() {
   };
 
   const addProject = () => {
-    setProjects([...projects, { project_name: '', technologies_used: [] }]);
+    setProjects([...projects, { 
+      project_name: '', 
+      technologies_used: [] 
+    }]);
   };
 
   const removeProject = (index: number) => {
@@ -239,7 +311,10 @@ export default function EditCandidate() {
   };
 
   const addCertification = () => {
-    setCertifications([...certifications, { certification_name: '', issuing_organization: '' }]);
+    setCertifications([...certifications, { 
+      certification_name: '', 
+      issuing_organization: '' 
+    }]);
   };
 
   const removeCertification = (index: number) => {
@@ -247,7 +322,10 @@ export default function EditCandidate() {
   };
 
   const addLanguage = () => {
-    setLanguages([...languages, { language_name: '', proficiency_level: 'Intermediate' }]);
+    setLanguages([...languages, { 
+      language_name: '', 
+      proficiency_level: 'Intermediate' 
+    }]);
   };
 
   const removeLanguage = (index: number) => {
@@ -259,11 +337,38 @@ export default function EditCandidate() {
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">جاري التحميل...</p>
+          <p className="mt-4 text-gray-600">Loading candidate data...</p>
         </div>
       </div>
     );
   }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+          <p className="text-red-600">Failed to load candidate data</p>
+          <button 
+            onClick={() => navigate('/candidates')}
+            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+          >
+            Back to Candidates
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const sections = [
+    { id: 'basic', label: 'Basic Information', icon: User },
+    { id: 'skills', label: 'Skills', icon: Settings },
+    { id: 'experience', label: 'Work Experience', icon: Briefcase },
+    { id: 'education', label: 'Education', icon: GraduationCap },
+    { id: 'projects', label: 'Projects', icon: Settings },
+    { id: 'certifications', label: 'Certifications', icon: Award },
+    { id: 'languages', label: 'Languages', icon: Languages }
+  ];
 
   return (
     <div className="max-w-7xl mx-auto p-6">
@@ -278,7 +383,7 @@ export default function EditCandidate() {
           </button>
           <div>
             <h1 className="text-3xl font-bold text-gray-800">
-              تعديل بيانات المرشح
+              Edit Candidate Profile
             </h1>
             <p className="text-gray-600 mt-1">
               {formData.first_name} {formData.last_name}
@@ -287,10 +392,11 @@ export default function EditCandidate() {
         </div>
         <button
           onClick={handleSave}
-          className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+          disabled={isSubmitting}
+          className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
         >
           <Save className="w-5 h-5" />
-          حفظ التعديلات
+          {isSubmitting ? 'Saving...' : 'Save Changes'}
         </button>
       </div>
 
@@ -314,53 +420,51 @@ export default function EditCandidate() {
       {/* Tabs */}
       <div className="mb-6 border-b border-gray-200">
         <div className="flex gap-1 overflow-x-auto">
-          {[
-            { id: 'basic', label: 'المعلومات الأساسية' },
-            { id: 'skills', label: 'المهارات' },
-            { id: 'experience', label: 'الخبرات العملية' },
-            { id: 'education', label: 'التعليم' },
-            { id: 'projects', label: 'المشاريع' },
-            { id: 'certifications', label: 'الشهادات' },
-            { id: 'languages', label: 'اللغات' }
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveSection(tab.id)}
-              className={`px-6 py-3 font-medium transition border-b-2 whitespace-nowrap ${
-                activeSection === tab.id
-                  ? 'text-blue-600 border-blue-600'
-                  : 'text-gray-600 border-transparent hover:text-gray-800'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+          {sections.map((section) => {
+            const IconComponent = section.icon;
+            return (
+              <button
+                key={section.id}
+                onClick={() => setActiveSection(section.id)}
+                className={`px-6 py-3 font-medium transition border-b-2 whitespace-nowrap flex items-center gap-2 ${
+                  activeSection === section.id
+                    ? 'text-blue-600 border-blue-600'
+                    : 'text-gray-600 border-transparent hover:text-gray-800'
+                }`}
+              >
+                <IconComponent className="w-4 h-4" />
+                {section.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
       {/* Content */}
       <div className="bg-white rounded-lg border border-gray-200 p-6">
-        {/* Basic Info */}
+        {/* Basic Information */}
         {activeSection === 'basic' && (
           <div className="space-y-6">
+            <h3 className="text-lg font-semibold mb-4">Basic Information</h3>
+            
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">الاسم الأول *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">First Name *</label>
                 <input
                   type="text"
                   value={formData.first_name}
                   onChange={(e) => setFormData({...formData, first_name: e.target.value})}
-                  className="w-full p-2 border border-gray-300 rounded-lg"
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">الاسم الأخير *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Last Name *</label>
                 <input
                   type="text"
                   value={formData.last_name}
                   onChange={(e) => setFormData({...formData, last_name: e.target.value})}
-                  className="w-full p-2 border border-gray-300 rounded-lg"
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   required
                 />
               </div>
@@ -368,73 +472,82 @@ export default function EditCandidate() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">البريد الإلكتروني *</label>
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({...formData, email: e.target.value})}
-                  className="w-full p-2 border border-gray-300 rounded-lg"
-                  required
-                />
+                <label className="block text-sm font-medium text-gray-700 mb-2">Email *</label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+                  <input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({...formData, email: e.target.value})}
+                    className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                  />
+                </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">رقم الهاتف</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Phone</label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+                  <input
+                    type="tel"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                    className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Current Location</label>
+              <div className="relative">
+                <MapPin className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
                 <input
-                  type="tel"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                  className="w-full p-2 border border-gray-300 rounded-lg"
+                  type="text"
+                  value={formData.current_location}
+                  onChange={(e) => setFormData({...formData, current_location: e.target.value})}
+                  className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="City, Country"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">الموقع الحالي</label>
-              <input
-                type="text"
-                value={formData.current_location}
-                onChange={(e) => setFormData({...formData, current_location: e.target.value})}
-                className="w-full p-2 border border-gray-300 rounded-lg"
-                placeholder="المدينة، الدولة"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">الملخص المهني</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Professional Summary</label>
               <textarea
                 value={formData.professional_summary}
                 onChange={(e) => setFormData({...formData, professional_summary: e.target.value})}
                 rows={4}
-                className="w-full p-2 border border-gray-300 rounded-lg"
-                placeholder="نبذة مختصرة عن خبراتك ومهاراتك..."
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Brief overview of your experience and skills..."
               />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">المستوى المهني</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Career Level</label>
                 <select
                   value={formData.career_level}
                   onChange={(e) => setFormData({...formData, career_level: e.target.value})}
-                  className="w-full p-2 border border-gray-300 rounded-lg"
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
-                  <option value="">-- اختر --</option>
-                  <option value="Entry">مبتدئ</option>
-                  <option value="Mid">متوسط</option>
-                  <option value="Senior">أقدم</option>
-                  <option value="Lead">قائد فريق</option>
-                  <option value="Manager">مدير</option>
-                  <option value="Director">مدير تنفيذي</option>
-                  <option value="Executive">إداري عالي</option>
+                  <option value="">-- Select --</option>
+                  <option value="Entry">Entry Level</option>
+                  <option value="Mid">Mid Level</option>
+                  <option value="Senior">Senior Level</option>
+                  <option value="Lead">Lead</option>
+                  <option value="Manager">Manager</option>
+                  <option value="Director">Director</option>
+                  <option value="Executive">Executive</option>
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">سنوات الخبرة</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Years of Experience</label>
                 <input
                   type="number"
                   value={formData.years_of_experience}
                   onChange={(e) => setFormData({...formData, years_of_experience: parseInt(e.target.value) || 0})}
-                  className="w-full p-2 border border-gray-300 rounded-lg"
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   min="0"
                 />
               </div>
@@ -442,90 +555,87 @@ export default function EditCandidate() {
 
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">LinkedIn</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">LinkedIn URL</label>
                 <input
                   type="url"
                   value={formData.linkedin_url}
                   onChange={(e) => setFormData({...formData, linkedin_url: e.target.value})}
-                  className="w-full p-2 border border-gray-300 rounded-lg"
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="https://linkedin.com/in/..."
-                  dir="ltr"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">GitHub</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">GitHub URL</label>
                 <input
                   type="url"
                   value={formData.github_url}
                   onChange={(e) => setFormData({...formData, github_url: e.target.value})}
-                  className="w-full p-2 border border-gray-300 rounded-lg"
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="https://github.com/..."
-                  dir="ltr"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Portfolio</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Portfolio URL</label>
                 <input
                   type="url"
                   value={formData.portfolio_url}
                   onChange={(e) => setFormData({...formData, portfolio_url: e.target.value})}
-                  className="w-full p-2 border border-gray-300 rounded-lg"
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="https://..."
-                  dir="ltr"
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <input
                   type="checkbox"
                   id="relocation"
                   checked={formData.open_to_relocation}
                   onChange={(e) => setFormData({...formData, open_to_relocation: e.target.checked})}
-                  className="w-4 h-4"
+                  className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
                 />
-                <label htmlFor="relocation" className="text-sm text-gray-700">مستعد للانتقال</label>
+                <label htmlFor="relocation" className="text-sm text-gray-700">Open to relocation</label>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <input
                   type="checkbox"
                   id="travel"
                   checked={formData.willing_to_travel}
                   onChange={(e) => setFormData({...formData, willing_to_travel: e.target.checked})}
-                  className="w-4 h-4"
+                  className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
                 />
-                <label htmlFor="travel" className="text-sm text-gray-700">مستعد للسفر</label>
+                <label htmlFor="travel" className="text-sm text-gray-700">Willing to travel</label>
               </div>
             </div>
 
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">الراتب المتوقع (من)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Expected Salary (Min)</label>
                 <input
                   type="number"
                   value={formData.expected_salary_min}
                   onChange={(e) => setFormData({...formData, expected_salary_min: parseInt(e.target.value) || 0})}
-                  className="w-full p-2 border border-gray-300 rounded-lg"
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   min="0"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">الراتب المتوقع (إلى)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Expected Salary (Max)</label>
                 <input
                   type="number"
                   value={formData.expected_salary_max}
                   onChange={(e) => setFormData({...formData, expected_salary_max: parseInt(e.target.value) || 0})}
-                  className="w-full p-2 border border-gray-300 rounded-lg"
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   min="0"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">العملة</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Currency</label>
                 <select
                   value={formData.salary_currency}
                   onChange={(e) => setFormData({...formData, salary_currency: e.target.value})}
-                  className="w-full p-2 border border-gray-300 rounded-lg"
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   <option value="USD">USD</option>
                   <option value="EUR">EUR</option>
@@ -539,27 +649,27 @@ export default function EditCandidate() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">التوافر</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Availability</label>
                 <select
                   value={formData.availability}
                   onChange={(e) => setFormData({...formData, availability: e.target.value})}
-                  className="w-full p-2 border border-gray-300 rounded-lg"
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
-                  <option value="">-- اختر --</option>
-                  <option value="Immediate">فوري</option>
-                  <option value="2 weeks">أسبوعين</option>
-                  <option value="1 month">شهر</option>
-                  <option value="2 months">شهرين</option>
-                  <option value="3 months">3 أشهر</option>
+                  <option value="">-- Select --</option>
+                  <option value="Immediate">Immediate</option>
+                  <option value="2 weeks">2 weeks</option>
+                  <option value="1 month">1 month</option>
+                  <option value="2 months">2 months</option>
+                  <option value="3 months">3 months</option>
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">مدة الإشعار (بالأيام)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Notice Period (days)</label>
                 <input
                   type="number"
                   value={formData.notice_period_days}
                   onChange={(e) => setFormData({...formData, notice_period_days: parseInt(e.target.value) || 0})}
-                  className="w-full p-2 border border-gray-300 rounded-lg"
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   min="0"
                 />
               </div>
@@ -571,13 +681,13 @@ export default function EditCandidate() {
         {activeSection === 'skills' && (
           <div className="space-y-4">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">المهارات</h3>
+              <h3 className="text-lg font-semibold">Skills</h3>
               <button
                 onClick={addSkill}
                 className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center gap-2"
               >
                 <Plus className="w-4 h-4" />
-                إضافة مهارة
+                Add Skill
               </button>
             </div>
             {skills.map((skill, index) => (
@@ -585,7 +695,7 @@ export default function EditCandidate() {
                 <div className="flex justify-between items-start">
                   <div className="flex-1 grid grid-cols-3 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">اسم المهارة</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Skill Name</label>
                       <input
                         type="text"
                         value={skill.skill_name}
@@ -594,12 +704,12 @@ export default function EditCandidate() {
                           newSkills[index].skill_name = e.target.value;
                           setSkills(newSkills);
                         }}
-                        className="w-full p-2 border border-gray-300 rounded-lg"
-                        placeholder="مثال: Python, React, Project Management"
+                        className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="e.g., Python, React, Project Management"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">المستوى</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Proficiency Level</label>
                       <select
                         value={skill.proficiency_level}
                         onChange={(e) => {
@@ -607,16 +717,16 @@ export default function EditCandidate() {
                           newSkills[index].proficiency_level = e.target.value;
                           setSkills(newSkills);
                         }}
-                        className="w-full p-2 border border-gray-300 rounded-lg"
+                        className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       >
-                        <option value="Beginner">مبتدئ</option>
-                        <option value="Intermediate">متوسط</option>
-                        <option value="Advanced">متقدم</option>
-                        <option value="Expert">خبير</option>
+                        <option value="Beginner">Beginner</option>
+                        <option value="Intermediate">Intermediate</option>
+                        <option value="Advanced">Advanced</option>
+                        <option value="Expert">Expert</option>
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">سنوات الخبرة</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Years of Experience</label>
                       <input
                         type="number"
                         value={skill.years_of_experience || 0}
@@ -625,7 +735,7 @@ export default function EditCandidate() {
                           newSkills[index].years_of_experience = parseInt(e.target.value) || 0;
                           setSkills(newSkills);
                         }}
-                        className="w-full p-2 border border-gray-300 rounded-lg"
+                        className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         min="0"
                       />
                     </div>
@@ -641,7 +751,7 @@ export default function EditCandidate() {
             ))}
             {skills.length === 0 && (
               <div className="text-center py-8 text-gray-500">
-                لا توجد مهارات. انقر على "إضافة مهارة" لإضافة مهارة جديدة.
+                No skills added yet. Click "Add Skill" to add your first skill.
               </div>
             )}
           </div>
@@ -651,13 +761,13 @@ export default function EditCandidate() {
         {activeSection === 'experience' && (
           <div className="space-y-4">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">الخبرات العملية</h3>
+              <h3 className="text-lg font-semibold">Work Experience</h3>
               <button
                 onClick={addWorkExperience}
                 className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center gap-2"
               >
                 <Plus className="w-4 h-4" />
-                إضافة خبرة
+                Add Experience
               </button>
             </div>
             {workExperiences.map((exp, index) => (
@@ -666,7 +776,7 @@ export default function EditCandidate() {
                   <div className="flex-1 space-y-3">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">اسم الشركة</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Company Name</label>
                         <input
                           type="text"
                           value={exp.company_name}
@@ -675,11 +785,11 @@ export default function EditCandidate() {
                             newExps[index].company_name = e.target.value;
                             setWorkExperiences(newExps);
                           }}
-                          className="w-full p-2 border border-gray-300 rounded-lg"
+                          className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">المسمى الوظيفي</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Job Title</label>
                         <input
                           type="text"
                           value={exp.position}
@@ -688,13 +798,13 @@ export default function EditCandidate() {
                             newExps[index].position = e.target.value;
                             setWorkExperiences(newExps);
                           }}
-                          className="w-full p-2 border border-gray-300 rounded-lg"
+                          className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
                       </div>
                     </div>
                     <div className="grid grid-cols-3 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">تاريخ البدء</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
                         <input
                           type="date"
                           value={exp.start_date}
@@ -703,11 +813,11 @@ export default function EditCandidate() {
                             newExps[index].start_date = e.target.value;
                             setWorkExperiences(newExps);
                           }}
-                          className="w-full p-2 border border-gray-300 rounded-lg"
+                          className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">تاريخ الانتهاء</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
                         <input
                           type="date"
                           value={exp.end_date || ''}
@@ -716,11 +826,11 @@ export default function EditCandidate() {
                             newExps[index].end_date = e.target.value || undefined;
                             setWorkExperiences(newExps);
                           }}
-                          className="w-full p-2 border border-gray-300 rounded-lg"
+                          className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">نوع التوظيف</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Employment Type</label>
                         <select
                           value={exp.employment_type || 'Full-time'}
                           onChange={(e) => {
@@ -728,18 +838,18 @@ export default function EditCandidate() {
                             newExps[index].employment_type = e.target.value;
                             setWorkExperiences(newExps);
                           }}
-                          className="w-full p-2 border border-gray-300 rounded-lg"
+                          className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         >
-                          <option value="Full-time">دوام كامل</option>
-                          <option value="Part-time">دوام جزئي</option>
-                          <option value="Contract">عقد</option>
-                          <option value="Freelance">عمل حر</option>
-                          <option value="Internship">تدريب</option>
+                          <option value="Full-time">Full-time</option>
+                          <option value="Part-time">Part-time</option>
+                          <option value="Contract">Contract</option>
+                          <option value="Freelance">Freelance</option>
+                          <option value="Internship">Internship</option>
                         </select>
                       </div>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">المسؤوليات</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Responsibilities</label>
                       <textarea
                         value={exp.responsibilities || ''}
                         onChange={(e) => {
@@ -748,7 +858,7 @@ export default function EditCandidate() {
                           setWorkExperiences(newExps);
                         }}
                         rows={3}
-                        className="w-full p-2 border border-gray-300 rounded-lg"
+                        className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
                     </div>
                   </div>
@@ -763,7 +873,7 @@ export default function EditCandidate() {
             ))}
             {workExperiences.length === 0 && (
               <div className="text-center py-8 text-gray-500">
-                لا توجد خبرات عملية. انقر على "إضافة خبرة" لإضافة خبرة جديدة.
+                No work experience added yet. Click "Add Experience" to add your first job.
               </div>
             )}
           </div>
@@ -773,13 +883,13 @@ export default function EditCandidate() {
         {activeSection === 'education' && (
           <div className="space-y-4">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">التعليم</h3>
+              <h3 className="text-lg font-semibold">Education</h3>
               <button
                 onClick={addEducation}
                 className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center gap-2"
               >
                 <Plus className="w-4 h-4" />
-                إضافة مؤهل
+                Add Education
               </button>
             </div>
             {education.map((edu, index) => (
@@ -788,7 +898,7 @@ export default function EditCandidate() {
                   <div className="flex-1 space-y-3">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">اسم المؤسسة</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Institution Name</label>
                         <input
                           type="text"
                           value={edu.institution_name}
@@ -797,11 +907,11 @@ export default function EditCandidate() {
                             newEdu[index].institution_name = e.target.value;
                             setEducation(newEdu);
                           }}
-                          className="w-full p-2 border border-gray-300 rounded-lg"
+                          className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">الدرجة العلمية</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Degree</label>
                         <input
                           type="text"
                           value={edu.degree}
@@ -810,14 +920,14 @@ export default function EditCandidate() {
                             newEdu[index].degree = e.target.value;
                             setEducation(newEdu);
                           }}
-                          className="w-full p-2 border border-gray-300 rounded-lg"
-                          placeholder="مثال: بكالوريوس، ماجستير"
+                          className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          placeholder="e.g., Bachelor's, Master's, PhD"
                         />
                       </div>
                     </div>
                     <div className="grid grid-cols-3 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">التخصص</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Field of Study</label>
                         <input
                           type="text"
                           value={edu.field_of_study || ''}
@@ -826,11 +936,11 @@ export default function EditCandidate() {
                             newEdu[index].field_of_study = e.target.value;
                             setEducation(newEdu);
                           }}
-                          className="w-full p-2 border border-gray-300 rounded-lg"
+                          className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">تاريخ البدء</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
                         <input
                           type="date"
                           value={edu.start_date}
@@ -839,11 +949,11 @@ export default function EditCandidate() {
                             newEdu[index].start_date = e.target.value;
                             setEducation(newEdu);
                           }}
-                          className="w-full p-2 border border-gray-300 rounded-lg"
+                          className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">تاريخ التخرج</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Graduation Date</label>
                         <input
                           type="date"
                           value={edu.end_date || ''}
@@ -852,12 +962,12 @@ export default function EditCandidate() {
                             newEdu[index].end_date = e.target.value || undefined;
                             setEducation(newEdu);
                           }}
-                          className="w-full p-2 border border-gray-300 rounded-lg"
+                          className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
                       </div>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">التقدير</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Grade/GPA</label>
                       <input
                         type="text"
                         value={edu.grade || ''}
@@ -866,8 +976,8 @@ export default function EditCandidate() {
                           newEdu[index].grade = e.target.value;
                           setEducation(newEdu);
                         }}
-                        className="w-full p-2 border border-gray-300 rounded-lg"
-                        placeholder="مثال: ممتاز، جيد جداً، 3.8 GPA"
+                        className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="e.g., Excellent, Distinction, 3.8 GPA"
                       />
                     </div>
                   </div>
@@ -882,7 +992,7 @@ export default function EditCandidate() {
             ))}
             {education.length === 0 && (
               <div className="text-center py-8 text-gray-500">
-                لا توجد مؤهلات تعليمية. انقر على "إضافة مؤهل" لإضافة مؤهل جديد.
+                No education added yet. Click "Add Education" to add your first qualification.
               </div>
             )}
           </div>
@@ -892,13 +1002,13 @@ export default function EditCandidate() {
         {activeSection === 'projects' && (
           <div className="space-y-4">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">المشاريع</h3>
+              <h3 className="text-lg font-semibold">Projects</h3>
               <button
                 onClick={addProject}
                 className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center gap-2"
               >
                 <Plus className="w-4 h-4" />
-                إضافة مشروع
+                Add Project
               </button>
             </div>
             {projects.map((proj, index) => (
@@ -907,7 +1017,7 @@ export default function EditCandidate() {
                   <div className="flex-1 space-y-3">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">اسم المشروع</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Project Name</label>
                         <input
                           type="text"
                           value={proj.project_name}
@@ -916,11 +1026,11 @@ export default function EditCandidate() {
                             newProj[index].project_name = e.target.value;
                             setProjects(newProj);
                           }}
-                          className="w-full p-2 border border-gray-300 rounded-lg"
+                          className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">الدور</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
                         <input
                           type="text"
                           value={proj.role || ''}
@@ -929,13 +1039,13 @@ export default function EditCandidate() {
                             newProj[index].role = e.target.value;
                             setProjects(newProj);
                           }}
-                          className="w-full p-2 border border-gray-300 rounded-lg"
-                          placeholder="مثال: مطور رئيسي، مدير مشروع"
+                          className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          placeholder="e.g., Lead Developer, Project Manager"
                         />
                       </div>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">الوصف</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                       <textarea
                         value={proj.description || ''}
                         onChange={(e) => {
@@ -944,12 +1054,12 @@ export default function EditCandidate() {
                           setProjects(newProj);
                         }}
                         rows={3}
-                        className="w-full p-2 border border-gray-300 rounded-lg"
+                        className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">تاريخ البدء</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
                         <input
                           type="date"
                           value={proj.start_date || ''}
@@ -958,11 +1068,11 @@ export default function EditCandidate() {
                             newProj[index].start_date = e.target.value;
                             setProjects(newProj);
                           }}
-                          className="w-full p-2 border border-gray-300 rounded-lg"
+                          className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">تاريخ الانتهاء</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
                         <input
                           type="date"
                           value={proj.end_date || ''}
@@ -971,12 +1081,12 @@ export default function EditCandidate() {
                             newProj[index].end_date = e.target.value;
                             setProjects(newProj);
                           }}
-                          className="w-full p-2 border border-gray-300 rounded-lg"
+                          className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
                       </div>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">رابط المشروع</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Project URL</label>
                       <input
                         type="url"
                         value={proj.project_url || ''}
@@ -985,23 +1095,22 @@ export default function EditCandidate() {
                           newProj[index].project_url = e.target.value;
                           setProjects(newProj);
                         }}
-                        className="w-full p-2 border border-gray-300 rounded-lg"
+                        className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         placeholder="https://..."
-                        dir="ltr"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">التقنيات المستخدمة</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Technologies Used</label>
                       <input
                         type="text"
                         value={proj.technologies_used?.join(', ') || ''}
                         onChange={(e) => {
                           const newProj = [...projects];
-                          newProj[index].technologies_used = e.target.value.split(',').map(t => t.trim());
+                          newProj[index].technologies_used = e.target.value.split(',').map(t => t.trim()).filter(t => t);
                           setProjects(newProj);
                         }}
-                        className="w-full p-2 border border-gray-300 rounded-lg"
-                        placeholder="مثال: React, Node.js, PostgreSQL"
+                        className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="e.g., React, Node.js, PostgreSQL"
                       />
                     </div>
                   </div>
@@ -1016,7 +1125,7 @@ export default function EditCandidate() {
             ))}
             {projects.length === 0 && (
               <div className="text-center py-8 text-gray-500">
-                لا توجد مشاريع. انقر على "إضافة مشروع" لإضافة مشروع جديد.
+                No projects added yet. Click "Add Project" to add your first project.
               </div>
             )}
           </div>
@@ -1026,13 +1135,13 @@ export default function EditCandidate() {
         {activeSection === 'certifications' && (
           <div className="space-y-4">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">الشهادات</h3>
+              <h3 className="text-lg font-semibold">Certifications</h3>
               <button
                 onClick={addCertification}
                 className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center gap-2"
               >
                 <Plus className="w-4 h-4" />
-                إضافة شهادة
+                Add Certification
               </button>
             </div>
             {certifications.map((cert, index) => (
@@ -1041,7 +1150,7 @@ export default function EditCandidate() {
                   <div className="flex-1 space-y-3">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">اسم الشهادة</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Certification Name</label>
                         <input
                           type="text"
                           value={cert.certification_name}
@@ -1050,11 +1159,11 @@ export default function EditCandidate() {
                             newCert[index].certification_name = e.target.value;
                             setCertifications(newCert);
                           }}
-                          className="w-full p-2 border border-gray-300 rounded-lg"
+                          className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">الجهة المانحة</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Issuing Organization</label>
                         <input
                           type="text"
                           value={cert.issuing_organization}
@@ -1063,13 +1172,13 @@ export default function EditCandidate() {
                             newCert[index].issuing_organization = e.target.value;
                             setCertifications(newCert);
                           }}
-                          className="w-full p-2 border border-gray-300 rounded-lg"
+                          className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">تاريخ الإصدار</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Issue Date</label>
                         <input
                           type="date"
                           value={cert.issue_date || ''}
@@ -1078,11 +1187,11 @@ export default function EditCandidate() {
                             newCert[index].issue_date = e.target.value;
                             setCertifications(newCert);
                           }}
-                          className="w-full p-2 border border-gray-300 rounded-lg"
+                          className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">تاريخ الانتهاء</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Expiry Date</label>
                         <input
                           type="date"
                           value={cert.expiry_date || ''}
@@ -1091,13 +1200,13 @@ export default function EditCandidate() {
                             newCert[index].expiry_date = e.target.value;
                             setCertifications(newCert);
                           }}
-                          className="w-full p-2 border border-gray-300 rounded-lg"
+                          className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">رقم الشهادة</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Credential ID</label>
                         <input
                           type="text"
                           value={cert.credential_id || ''}
@@ -1106,11 +1215,11 @@ export default function EditCandidate() {
                             newCert[index].credential_id = e.target.value;
                             setCertifications(newCert);
                           }}
-                          className="w-full p-2 border border-gray-300 rounded-lg"
+                          className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">رابط الشهادة</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Credential URL</label>
                         <input
                           type="url"
                           value={cert.credential_url || ''}
@@ -1119,9 +1228,8 @@ export default function EditCandidate() {
                             newCert[index].credential_url = e.target.value;
                             setCertifications(newCert);
                           }}
-                          className="w-full p-2 border border-gray-300 rounded-lg"
+                          className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                           placeholder="https://..."
-                          dir="ltr"
                         />
                       </div>
                     </div>
@@ -1137,7 +1245,7 @@ export default function EditCandidate() {
             ))}
             {certifications.length === 0 && (
               <div className="text-center py-8 text-gray-500">
-                لا توجد شهادات. انقر على "إضافة شهادة" لإضافة شهادة جديدة.
+                No certifications added yet. Click "Add Certification" to add your first certification.
               </div>
             )}
           </div>
@@ -1147,13 +1255,13 @@ export default function EditCandidate() {
         {activeSection === 'languages' && (
           <div className="space-y-4">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">اللغات</h3>
+              <h3 className="text-lg font-semibold">Languages</h3>
               <button
                 onClick={addLanguage}
                 className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center gap-2"
               >
                 <Plus className="w-4 h-4" />
-                إضافة لغة
+                Add Language
               </button>
             </div>
             {languages.map((lang, index) => (
@@ -1161,7 +1269,7 @@ export default function EditCandidate() {
                 <div className="flex justify-between items-start gap-4">
                   <div className="flex-1 grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">اللغة</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Language</label>
                       <input
                         type="text"
                         value={lang.language_name}
@@ -1170,12 +1278,12 @@ export default function EditCandidate() {
                           newLang[index].language_name = e.target.value;
                           setLanguages(newLang);
                         }}
-                        className="w-full p-2 border border-gray-300 rounded-lg"
-                        placeholder="مثال: العربية، الإنجليزية"
+                        className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="e.g., Arabic, English, French"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">المستوى</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Proficiency Level</label>
                       <select
                         value={lang.proficiency_level}
                         onChange={(e) => {
@@ -1183,12 +1291,12 @@ export default function EditCandidate() {
                           newLang[index].proficiency_level = e.target.value;
                           setLanguages(newLang);
                         }}
-                        className="w-full p-2 border border-gray-300 rounded-lg"
+                        className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       >
-                        <option value="Beginner">مبتدئ</option>
-                        <option value="Intermediate">متوسط</option>
-                        <option value="Advanced">متقدم</option>
-                        <option value="Native">لغة أم</option>
+                        <option value="Beginner">Beginner</option>
+                        <option value="Intermediate">Intermediate</option>
+                        <option value="Advanced">Advanced</option>
+                        <option value="Native">Native</option>
                       </select>
                     </div>
                   </div>
@@ -1203,7 +1311,7 @@ export default function EditCandidate() {
             ))}
             {languages.length === 0 && (
               <div className="text-center py-8 text-gray-500">
-                لا توجد لغات. انقر على "إضافة لغة" لإضافة لغة جديدة.
+                No languages added yet. Click "Add Language" to add your first language.
               </div>
             )}
           </div>

@@ -5,7 +5,7 @@ import Layout from './components/Layout'
 import Dashboard from './pages/Dashboard'
 import Candidates from './pages/Candidates'
 import CandidateDetailEnhanced from './pages/CandidateDetailEnhanced'
-import EditCandidate from './pages/EditCandidate'
+import EditCandidateEnhanced from './pages/EditCandidateEnhanced'
 import Jobs from './pages/Jobs'
 import JobDetail from './pages/JobDetail'
 import Applications from './pages/Applications'
@@ -34,7 +34,7 @@ function App() {
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="candidates" element={<Candidates />} />
             <Route path="candidates/:id" element={<CandidateDetailEnhanced />} />
-            <Route path="candidates/:id/edit" element={<EditCandidate />} />
+            <Route path="candidates/:id/edit" element={<EditCandidateEnhanced />} />
             <Route path="jobs" element={<Jobs />} />
             <Route path="jobs/:id" element={<JobDetail />} />
             <Route path="applications" element={<Applications />} />
