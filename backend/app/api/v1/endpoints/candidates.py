@@ -304,12 +304,27 @@ def update_candidate(
             
             # Add new work experiences
             for exp_data in update_data_full['work_experiences']:
+                # Parse dates safely - handle empty strings and None values
+                start_date = None
+                if exp_data.get('start_date') and exp_data['start_date'].strip():
+                    try:
+                        start_date = datetime.strptime(exp_data['start_date'], '%Y-%m-%d').date()
+                    except ValueError:
+                        pass  # Keep as None if parsing fails
+                
+                end_date = None
+                if exp_data.get('end_date') and exp_data['end_date'].strip():
+                    try:
+                        end_date = datetime.strptime(exp_data['end_date'], '%Y-%m-%d').date()
+                    except ValueError:
+                        pass  # Keep as None if parsing fails
+                
                 exp = models.WorkExperience(
                     candidate_id=candidate_id,
                     company_name=exp_data.get('company_name', ''),
                     position=exp_data.get('position', ''),
-                    start_date=datetime.strptime(exp_data['start_date'], '%Y-%m-%d').date() if exp_data.get('start_date') else None,
-                    end_date=datetime.strptime(exp_data['end_date'], '%Y-%m-%d').date() if exp_data.get('end_date') else None,
+                    start_date=start_date,
+                    end_date=end_date,
                     responsibilities=exp_data.get('responsibilities'),
                     achievements=exp_data.get('achievements'),
                     employment_type=exp_data.get('employment_type', 'Full-time')
@@ -323,13 +338,28 @@ def update_candidate(
             
             # Add new education
             for edu_data in update_data_full['education']:
+                # Parse dates safely - handle empty strings and None values
+                start_date = None
+                if edu_data.get('start_date') and edu_data['start_date'].strip():
+                    try:
+                        start_date = datetime.strptime(edu_data['start_date'], '%Y-%m-%d').date()
+                    except ValueError:
+                        pass  # Keep as None if parsing fails
+                
+                end_date = None
+                if edu_data.get('end_date') and edu_data['end_date'].strip():
+                    try:
+                        end_date = datetime.strptime(edu_data['end_date'], '%Y-%m-%d').date()
+                    except ValueError:
+                        pass  # Keep as None if parsing fails
+                
                 edu = models.Education(
                     candidate_id=candidate_id,
                     institution_name=edu_data.get('institution_name', ''),
                     degree=edu_data.get('degree', ''),
                     field_of_study=edu_data.get('field_of_study'),
-                    start_date=datetime.strptime(edu_data['start_date'], '%Y-%m-%d').date() if edu_data.get('start_date') else None,
-                    end_date=datetime.strptime(edu_data['end_date'], '%Y-%m-%d').date() if edu_data.get('end_date') else None,
+                    start_date=start_date,
+                    end_date=end_date,
                     grade=edu_data.get('grade')
                 )
                 db.add(edu)
@@ -341,14 +371,29 @@ def update_candidate(
             
             # Add new projects
             for proj_data in update_data_full['projects']:
+                # Parse dates safely - handle empty strings and None values
+                start_date = None
+                if proj_data.get('start_date') and proj_data['start_date'].strip():
+                    try:
+                        start_date = datetime.strptime(proj_data['start_date'], '%Y-%m-%d').date()
+                    except ValueError:
+                        pass  # Keep as None if parsing fails
+                
+                end_date = None
+                if proj_data.get('end_date') and proj_data['end_date'].strip():
+                    try:
+                        end_date = datetime.strptime(proj_data['end_date'], '%Y-%m-%d').date()
+                    except ValueError:
+                        pass  # Keep as None if parsing fails
+                
                 proj = models.Project(
                     candidate_id=candidate_id,
                     project_name=proj_data.get('project_name', ''),
                     description=proj_data.get('description'),
                     technologies_used=proj_data.get('technologies_used', []),
                     role=proj_data.get('role'),
-                    start_date=datetime.strptime(proj_data['start_date'], '%Y-%m-%d').date() if proj_data.get('start_date') else None,
-                    end_date=datetime.strptime(proj_data['end_date'], '%Y-%m-%d').date() if proj_data.get('end_date') else None,
+                    start_date=start_date,
+                    end_date=end_date,
                     project_url=proj_data.get('project_url')
                 )
                 db.add(proj)
@@ -360,12 +405,27 @@ def update_candidate(
             
             # Add new certifications
             for cert_data in update_data_full['certifications']:
+                # Parse dates safely - handle empty strings and None values
+                issue_date = None
+                if cert_data.get('issue_date') and cert_data['issue_date'].strip():
+                    try:
+                        issue_date = datetime.strptime(cert_data['issue_date'], '%Y-%m-%d').date()
+                    except ValueError:
+                        pass  # Keep as None if parsing fails
+                
+                expiry_date = None
+                if cert_data.get('expiry_date') and cert_data['expiry_date'].strip():
+                    try:
+                        expiry_date = datetime.strptime(cert_data['expiry_date'], '%Y-%m-%d').date()
+                    except ValueError:
+                        pass  # Keep as None if parsing fails
+                
                 cert = models.Certification(
                     candidate_id=candidate_id,
                     certification_name=cert_data.get('certification_name', ''),
                     issuing_organization=cert_data.get('issuing_organization', ''),
-                    issue_date=datetime.strptime(cert_data['issue_date'], '%Y-%m-%d').date() if cert_data.get('issue_date') else None,
-                    expiry_date=datetime.strptime(cert_data['expiry_date'], '%Y-%m-%d').date() if cert_data.get('expiry_date') else None,
+                    issue_date=issue_date,
+                    expiry_date=expiry_date,
                     credential_id=cert_data.get('credential_id'),
                     credential_url=cert_data.get('credential_url')
                 )
