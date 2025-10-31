@@ -171,6 +171,12 @@ export default function AdminSettings() {
       // Always show AI_PROVIDER selector and USE_MOCK_AI
       if (s.key === 'AI_PROVIDER' || s.key === 'USE_MOCK_AI') return true;
       
+      // ALWAYS show instruction fields
+      if (s.key === 'resume_analysis_instructions' || s.key === 'chat_system_instructions') {
+        console.log('🎯 Found instruction field:', s.key, 'data_type:', s.data_type);
+        return true;
+      }
+      
       // Get current provider
       const currentProvider = editedValues['AI_PROVIDER'] || 'groq';
       
@@ -308,7 +314,14 @@ export default function AdminSettings() {
               </div>
             ) : (
               <div className="divide-y divide-gray-200 dark:divide-gray-700">
-                {filteredSettings.map((setting) => (
+                {filteredSettings.map((setting) => {
+                  // Hardcoded detection for instruction fields
+                  const isInstructionField = setting.key === 'resume_analysis_instructions' || 
+                                           setting.key === 'chat_system_instructions';
+                  
+                  console.log(`Setting: ${setting.key}, isInstructionField: ${isInstructionField}, data_type: ${setting.data_type}`);
+                  
+                  return (
                   <div key={setting.key} className="p-6 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex-1">
@@ -329,7 +342,11 @@ export default function AdminSettings() {
                       </div>
                     </div>
 
-                    <div className="flex gap-3">
+                    <div className={`flex ${
+                      setting.key === 'resume_analysis_instructions' || 
+                      setting.key === 'chat_system_instructions'
+                        ? 'flex-col' : 'flex-row'
+                    } gap-3`}>
                       {setting.data_type === 'boolean' ? (
                         <select
                           value={editedValues[setting.key] || 'false'}
@@ -356,6 +373,16 @@ export default function AdminSettings() {
                           onChange={(e) => handleValueChange(setting.key, e.target.value)}
                           className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                         />
+                      ) : setting.key === 'resume_analysis_instructions' || 
+                           setting.key === 'chat_system_instructions' ||
+                           setting.data_type === 'text' ? (
+                        <textarea
+                          value={editedValues[setting.key] || ''}
+                          onChange={(e) => handleValueChange(setting.key, e.target.value)}
+                          rows={setting.key === 'resume_analysis_instructions' || setting.key === 'chat_system_instructions' ? 12 : 8}
+                          placeholder={setting.is_encrypted ? '***ENCRYPTED***' : setting.description}
+                          className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white resize-vertical font-mono text-sm"
+                        />
                       ) : (
                         <input
                           type={setting.data_type === 'password' ? 'password' : 'text'}
@@ -369,7 +396,12 @@ export default function AdminSettings() {
                       <button
                         onClick={() => handleSaveSetting(setting)}
                         disabled={!hasUnsavedChanges(setting)}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                        className={`px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center ${
+                          setting.key === 'resume_analysis_instructions' || 
+                          setting.key === 'chat_system_instructions'
+                            ? 'self-end' 
+                            : ''
+                        }`}
                       >
                         <Save className="w-4 h-4 mr-2" />
                         Save
@@ -382,7 +414,8 @@ export default function AdminSettings() {
                       </p>
                     )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

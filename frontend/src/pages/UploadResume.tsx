@@ -34,8 +34,14 @@ const UploadResume = () => {
       setCandidateInfo(response.data)
       queryClient.invalidateQueries({ queryKey: ['candidates'] })
       
-      // Auto-navigate to candidates page after 3 seconds
-      setTimeout(() => navigate('/candidates'), 3000)
+      // Auto-navigate to candidate profile page after 2 seconds
+      setTimeout(() => {
+        if (response.data?.candidate_id) {
+          navigate(`/candidates/${response.data.candidate_id}`)
+        } else {
+          navigate('/candidates')
+        }
+      }, 2000)
     },
     onError: (error: any) => {
       setUploadStatus('error')
@@ -214,44 +220,20 @@ const UploadResume = () => {
               AI has extracted all candidate information
             </p>
             
-            {candidateInfo && (
-              <div className="max-w-md mx-auto bg-gray-50 dark:bg-gray-800 rounded-lg p-6 mb-6">
-                <h3 className="font-semibold text-gray-900 dark:text-white mb-3">
-                  Extracted Information
-                </h3>
-                <div className="text-left space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600 dark:text-gray-400">Name:</span>
-                    <span className="font-medium text-gray-900 dark:text-white">
-                      {candidateInfo.first_name} {candidateInfo.last_name}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600 dark:text-gray-400">Email:</span>
-                    <span className="font-medium text-gray-900 dark:text-white">
-                      {candidateInfo.email}
-                    </span>
-                  </div>
-                  {candidateInfo.phone && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-600 dark:text-gray-400">Phone:</span>
-                      <span className="font-medium text-gray-900 dark:text-white">
-                        {candidateInfo.phone}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
             <p className="text-sm text-gray-500 mb-4">
-              Redirecting to candidates page...
+              Redirecting to candidate profile...
             </p>
             <button
-              onClick={() => navigate('/candidates')}
+              onClick={() => {
+                if (candidateInfo?.candidate_id) {
+                  navigate(`/candidates/${candidateInfo.candidate_id}`)
+                } else {
+                  navigate('/candidates')
+                }
+              }}
               className="btn-primary"
             >
-              View All Candidates
+              View Candidate Profile
             </button>
           </div>
         )}

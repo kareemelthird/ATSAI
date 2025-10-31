@@ -233,6 +233,22 @@ const AdminSettings: React.FC = () => {
       );
     }
 
+    // Instruction fields - use large textarea
+    if (setting.key === 'resume_analysis_instructions' || 
+        setting.key === 'chat_system_instructions' ||
+        setting.key.includes('instructions') || 
+        setting.key.includes('prompt')) {
+      return (
+        <textarea
+          value={currentValue}
+          onChange={(e) => handleSettingChange(setting.key, e.target.value)}
+          rows={12}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-mono text-sm resize-vertical"
+          placeholder="Enter instructions..."
+        />
+      );
+    }
+
     // Text settings
     return (
       <input
@@ -288,22 +304,29 @@ const AdminSettings: React.FC = () => {
                 <h3 className="text-lg font-semibold text-gray-900">{category}</h3>
               </div>
               <div className="px-6 py-4 space-y-4">
-                {(settings as SystemSetting[]).map((setting: SystemSetting) => (
-                  <div key={setting.id} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">
-                        {setting.key.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
-                      </label>
-                      <p className="mt-1 text-xs text-gray-500">{setting.description}</p>
-                      <p className="mt-1 text-xs text-gray-400">
-                        Last updated: {new Date(setting.updated_at).toLocaleString()}
-                      </p>
+                {(settings as SystemSetting[]).map((setting: SystemSetting) => {
+                  const isInstructionField = setting.key === 'resume_analysis_instructions' || 
+                                           setting.key === 'chat_system_instructions' ||
+                                           setting.key.includes('instructions') || 
+                                           setting.key.includes('prompt');
+                  
+                  return (
+                    <div key={setting.id} className={`grid gap-4 ${isInstructionField ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-3'} items-start`}>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">
+                          {setting.key.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
+                        </label>
+                        <p className="mt-1 text-xs text-gray-500">{setting.description}</p>
+                        <p className="mt-1 text-xs text-gray-400">
+                          Last updated: {new Date(setting.updated_at).toLocaleString()}
+                        </p>
+                      </div>
+                      <div className={isInstructionField ? '' : 'md:col-span-2'}>
+                        {renderSettingInput(setting)}
+                      </div>
                     </div>
-                    <div className="md:col-span-2">
-                      {renderSettingInput(setting)}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           ))}

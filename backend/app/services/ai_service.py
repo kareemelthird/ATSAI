@@ -204,6 +204,40 @@ def safe_extract_string(data: dict, key: str, default: str = "") -> str:
         return default
 
 
+def clean_email_address(email_string: str) -> str:
+    """
+    Clean email address by taking the first valid email if multiple are present
+    """
+    try:
+        if not email_string or not isinstance(email_string, str):
+            return ""
+        
+        # Split by common delimiters used for multiple emails
+        email_string = email_string.strip()
+        
+        # Check for multiple emails separated by comma, semicolon, or space
+        delimiters = [',', ';', ' ', '\n', '\t']
+        for delimiter in delimiters:
+            if delimiter in email_string:
+                emails = email_string.split(delimiter)
+                # Take the first non-empty email that contains @
+                for email in emails:
+                    email = email.strip()
+                    if email and '@' in email and '.' in email:
+                        # Basic email validation
+                        if not any(char in email for char in [',', ';', ' '] if char != delimiter):
+                            return email
+        
+        # If no delimiters found, return the original (might be a single email)
+        if '@' in email_string and '.' in email_string:
+            return email_string
+            
+        return ""
+    except Exception as e:
+        print(f"⚠️ Error cleaning email: {e}")
+        return ""
+
+
 def safe_extract_list(data: dict, key: str, default: list = None) -> list:
     """
     Safely extract a list value from dictionary, handling nulls and type mismatches
@@ -269,14 +303,23 @@ Extract comprehensive information from the resume text and return it as detailed
 
 CRITICAL EXTRACTION RULES:
 1. Extract COMPLETE names (first, middle, last) - don't truncate
-2. Extract FULL email addresses and phone numbers with country codes if present
-3. For work experience: Extract ALL positions, with accurate dates and detailed descriptions
+2. Extract PRIMARY email address ONLY (if multiple emails exist, use the first/main one)
+3. Extract phone numbers with country codes if present
+4. For work experience: Extract ALL positions, with accurate dates and DETAILED job responsibilities
 4. For skills: Categorize as technical, soft, or domain-specific
 5. For education: Include ALL degrees, certifications, and courses
 6. Extract projects with technologies used
 7. Extract languages with proficiency levels if mentioned
 8. Determine career_level based on job titles and experience: Entry (0-2 years), Mid (3-5 years), Senior (6-10 years), Lead (10+ years), Manager/Director/Executive (management roles)
-9. Calculate total years_of_experience from all work history"""
+9. Calculate total years_of_experience from all work history
+
+WORK EXPERIENCE EXTRACTION - CRITICAL:
+- Extract DETAILED job responsibilities, not just brief summaries
+- Include specific technologies, tools, frameworks mentioned
+- Extract quantifiable achievements (numbers, percentages, metrics)
+- Include team leadership, project management details
+- Extract daily tasks, main responsibilities, and key accomplishments
+- Be comprehensive - capture ALL relevant information about each role"""
     )
     
     system_message = custom_instructions + """
@@ -306,10 +349,10 @@ CRITICAL EXTRACTION RULES:
       "title": "Senior Software Engineer", 
       "start_date": "2020-01",
       "end_date": "2024-06",
-      "description": "Led development of microservices architecture. Mentored 5 junior developers. Improved system performance by 40%.",
+      "description": "• Led development of microservices architecture using Python, Docker, and Kubernetes\n• Mentored team of 5 junior developers, conducting code reviews and technical guidance\n• Improved system performance by 40% through optimization and caching strategies\n• Implemented CI/CD pipelines using Jenkins and GitLab, reducing deployment time by 60%\n• Collaborated with product managers and designers on feature requirements and specifications\n• Managed database migrations and schema updates for PostgreSQL production systems\n• Conducted technical interviews and participated in hiring decisions for engineering team",
       "is_current": false,
       "location": "City, Country",
-      "achievements": ["Achievement 1", "Achievement 2"]
+      "achievements": ["Led successful migration to microservices", "Reduced system downtime by 85%", "Mentored 5 developers to promotion"]
     }
   ],
   
@@ -369,9 +412,12 @@ CRITICAL INSTRUCTIONS FOR DATES:
 
 IMPORTANT:
 - Be thorough - extract ALL information present in the resume
-- For work experience descriptions: Include key responsibilities AND achievements
+- For work experience descriptions: Include DETAILED responsibilities, daily tasks, technologies used, and specific achievements with metrics
 - Don't make up information - only extract what's actually in the resume
 - If a field is not found, omit it (don't use null or empty strings)
+- For job descriptions: Use bullet points (•) to separate different responsibilities and achievements
+- Extract specific technologies, programming languages, frameworks, and tools mentioned
+- Include quantifiable results (percentages, numbers, team sizes, revenue impact, etc.)
 
 Return ONLY valid JSON, no additional text or markdown formatting."""
     
@@ -415,7 +461,10 @@ Return the analysis as JSON."""
             # Extract name from analysis with safe extraction
             first_name = safe_extract_string(analysis, "first_name", "Unknown")
             last_name = safe_extract_string(analysis, "last_name", "")
-            email = safe_extract_string(analysis, "email", f"temp_{datetime.utcnow().timestamp()}@temp.com")
+            raw_email = safe_extract_string(analysis, "email", f"temp_{datetime.utcnow().timestamp()}@temp.com")
+            
+            # Clean email address to handle multiple emails
+            email = clean_email_address(raw_email)
             
             # Validate email format - if it looks invalid, use temp email
             if not email or "@" not in email or email.startswith("temp_"):
@@ -552,6 +601,24 @@ Return the analysis as JSON."""
                     is_current = bool(exp.get("is_current", False))
                     achievements = safe_extract_list(exp, "achievements")
                     
+                    # Calculate duration in months for this role
+                    duration_months = 0
+                    if start_date:
+                        if end_date:
+                            # Calculate difference between start and end date
+                            delta = end_date - start_date
+                            duration_months = round(delta.days / 30.44, 1)  # Average days per month
+                        elif is_current:
+                            # Calculate from start date to now
+                            delta = datetime.utcnow().date() - start_date
+                            duration_months = round(delta.days / 30.44, 1)
+                    
+                    # Ensure minimum value and reasonable maximum
+                    if duration_months < 0:
+                        duration_months = 0
+                    elif duration_months > 600:  # Sanity check (50 years)
+                        duration_months = 600
+                    
                     work_exp = models.WorkExperience(
                         candidate_id=candidate_id,
                         company_name=company_name,
@@ -561,7 +628,8 @@ Return the analysis as JSON."""
                         end_date=end_date,
                         is_current=is_current,
                         company_location=location,
-                        achievements=achievements if achievements else None
+                        achievements=achievements if achievements else None,
+                        duration_months=int(duration_months) if duration_months > 0 else None
                     )
                     db.add(work_exp)
                 except Exception as e:
@@ -753,7 +821,22 @@ async def chat_with_database(query: str, db: Session, current_user = None, conve
     print(f"📊 Found {len(candidates)} relevant candidates:")
     for c in candidates:
         print(f"   - {c.first_name} {c.last_name}")
+
+    # Detect language preference from query
+    def detect_language(text: str) -> str:
+        arabic_chars = sum(1 for char in text if '\u0600' <= char <= '\u06FF')
+        english_chars = sum(1 for char in text if char.isascii() and char.isalpha())
+        total_chars = arabic_chars + english_chars
+        
+        if total_chars == 0:
+            return "english"  # Default to English if no clear language detected
+        
+        arabic_ratio = arabic_chars / total_chars
+        return "arabic" if arabic_ratio > 0.3 else "english"
     
+    user_language = detect_language(query)
+    print(f"🌐 Detected language: {user_language}")
+
     # Build comprehensive context about candidates
     context_parts = []
     candidate_ids = []
@@ -791,6 +874,8 @@ async def chat_with_database(query: str, db: Session, current_user = None, conve
 Candidate: {candidate.first_name} {candidate.last_name}
 Email: {candidate.email}
 Location: {candidate.current_location or 'Not specified'}
+Years of Experience: {candidate.years_of_experience or 0} years
+Career Level: {candidate.career_level or 'Not specified'}
 Summary: {candidate.professional_summary or 'No summary available'}
 
 Skills: {', '.join(skills) if skills else 'No skills listed'}
@@ -812,22 +897,47 @@ Work Experience:
     
     database_context = "\n---\n".join(context_parts)
     
-    # Add Jobs context if query mentions jobs/positions
+    # Enhanced jobs context - Always include if query mentions positions or is about matching
     jobs_context = ""
-    if any(word in query_lower for word in ['job', 'position', 'opening', 'vacancy', 'وظيفة', 'وظائف']):
-        jobs = db.query(models.Job).filter(models.Job.status == 'open').limit(20).all()
+    job_related_terms = ['job', 'position', 'opening', 'vacancy', 'suitable', 'best', 'match', 'fit', 'recommend', 
+                        'وظيفة', 'وظائف', 'منصب', 'مناسب', 'أفضل', 'يناسب', 'ملائم', 'أنسب', 'الأنسب']
+    
+    if any(word in query_lower for word in job_related_terms):
+        jobs = db.query(models.Job).filter(models.Job.status == 'open').limit(10).all()
         if jobs:
-            jobs_context = "\n\nAVAILABLE JOBS:\n"
+            if user_language == "arabic":
+                jobs_context = "\n\nالوظائف المتاحة:\n"
+            else:
+                jobs_context = "\n\nAVAILABLE JOBS:\n"
+                
             for job in jobs:
-                jobs_context += f"""
+                required_skills_str = ', '.join(job.required_skills or [])
+                if user_language == "arabic":
+                    jobs_context += f"""
+الوظيفة: {job.title}
+الموقع: {job.location or 'عن بُعد'}
+النوع: {job.employment_type or 'دوام كامل'}
+المهارات المطلوبة: {required_skills_str}
+سنوات الخبرة: {job.min_experience_years or 0}-{job.max_experience_years or 10} سنة
+الراتب: {job.salary_min}-{job.salary_max} {job.salary_currency or 'USD'}
+الوصف: {job.description[:200] if job.description else 'غير محدد'}...
+---"""
+                else:
+                    jobs_context += f"""
 Job: {job.title}
 Location: {job.location or 'Remote'}
 Type: {job.employment_type or 'Full-time'}
-Required Skills: {', '.join(job.required_skills or [])}
+Required Skills: {required_skills_str}
 Experience: {job.min_experience_years or 0}-{job.max_experience_years or 10} years
 Salary: {job.salary_min}-{job.salary_max} {job.salary_currency or 'USD'}
 Description: {job.description[:200] if job.description else 'Not specified'}...
 ---"""
+        else:
+            # No jobs available - inform the AI
+            if user_language == "arabic":
+                jobs_context = "\n\nملاحظة: لا توجد وظائف متاحة حالياً في النظام. يرجى تقييم المرشحين بناءً على المؤهلات العامة.\n"
+            else:
+                jobs_context = "\n\nNote: No active job openings are currently available in the system. Please evaluate candidates based on general qualifications.\n"
     
     # Add Applications context if query mentions applications/candidates applying
     applications_context = ""
@@ -844,19 +954,49 @@ Description: {job.description[:200] if job.description else 'Not specified'}...
   Status: {app.status}, Stage: {app.current_stage or 'Initial'}
 ---"""
     
+    # Detect language preference from query
+    def detect_language(text: str) -> str:
+        arabic_chars = sum(1 for char in text if '\u0600' <= char <= '\u06FF')
+        english_chars = sum(1 for char in text if char.isascii() and char.isalpha())
+        total_chars = arabic_chars + english_chars
+        
+        if total_chars == 0:
+            return "english"  # Default to English if no clear language detected
+        
+        arabic_ratio = arabic_chars / total_chars
+        return "arabic" if arabic_ratio > 0.3 else "english"
+    
+    user_language = detect_language(query)
+    
     # Get custom chat instructions from database
+    language_specific_instructions = {
+        "arabic": """أنت مساعد ذكي متخصص في الموارد البشرية تساعد المسؤولين عن التوظيف في العثور على أفضل المرشحين.
+
+تعليمات مهمة:
+- أجب بوضوح وطبيعية باللغة العربية فقط، استناداً إلى بيانات المرشحين المقدمة
+- استخدم الأسماء والمعلومات الدقيقة من الملفات الشخصية أدناه
+- كن ودوداً ومفيداً
+- عند مقارنة المرشحين، قدم تفاصيل محددة مع نقاط القوة والضعف
+- قدم درجات تقييم واضحة (من 10) لكل مرشح
+- اربط مؤهلات كل مرشح بمتطلبات الوظيفة المحددة
+- اجعل إجاباتك مختصرة لكن غنية بالمعلومات""",
+        
+        "english": """You are a professional HR AI assistant helping recruiters find the best candidates.
+
+IMPORTANT INSTRUCTIONS:
+- Give direct, natural, conversational answers in English ONLY based on the candidate data provided
+- ALWAYS use the exact names and information from the profiles below
+- Be friendly and helpful but professional
+- When comparing candidates, provide specific details with strengths and weaknesses
+- Include clear scoring (out of 10) for each candidate
+- Match each candidate's qualifications to specific job requirements
+- Keep answers concise but informative"""
+    }
+    
     custom_instructions = get_ai_setting(
         db,
         "chat_system_instructions",
-        default_value="""You are a professional HR AI assistant helping recruiters find the best candidates.
-
-IMPORTANT INSTRUCTIONS:
-- Give direct, natural, conversational answers based ONLY on the candidate data provided
-- ALWAYS use the exact names and information from the profiles below
-- Be friendly and helpful
-- When comparing candidates, provide specific details
-- Support both English and Arabic queries
-- Keep answers concise but informative"""
+        default_value=language_specific_instructions.get(user_language, language_specific_instructions["english"])
     )
     
     system_message = custom_instructions + """
@@ -882,19 +1022,57 @@ CURRENT DATABASE CONTEXT:
             conversation_context += f"{role}: {content}\n"
         conversation_context += "\n"
 
+    # Enhance prompt with structured evaluation format
+    evaluation_format = {
+        "arabic": """
+صيغة الإجابة المطلوبة:
+- اذكر اسم الوظيفة المحددة في السؤال
+- قيّم كل مرشح بدرجة من 10 نقاط
+- اذكر نقاط القوة والضعف لكل مرشح
+- ارتب المرشحين حسب الأولوية
+- قدم توصية واضحة ومبررة
+
+مثال للتقييم:
+المرشح: [الاسم] - التقييم: [X/10]
+نقاط القوة: [قائمة محددة]
+نقاط الضعف: [قائمة محددة]
+المطابقة مع الوظيفة: [تفاصيل محددة]""",
+        
+        "english": """
+Required response format:
+- State the specific job position mentioned in the query
+- Rate each candidate with a score out of 10
+- List specific strengths and weaknesses for each candidate
+- Rank candidates by priority/fit
+- Provide a clear, justified recommendation
+
+Example evaluation format:
+Candidate: [Name] - Score: [X/10]
+Strengths: [specific list]
+Weaknesses: [specific list]
+Job Match: [specific details]"""
+    }
+
     user_prompt = f"""Answer this question about our candidates in a natural, helpful way:
 {conversation_context}
 Current Question: {query}
 
+{evaluation_format.get(user_language, evaluation_format["english"])}
+
 CANDIDATE PROFILES:
 {database_context}
+
+{jobs_context}
 
 IMPORTANT: 
 - The candidates listed above are the ONLY ones you should discuss. 
 - Use their exact names and details from their profiles.
-- If the user asks follow-up questions (like "why?", "tell me more", "what about X?"), refer to the previous conversation context.
+- If a specific job is mentioned, analyze each candidate's fit for that exact position.
+- If no specific job is mentioned, ask for clarification about the position requirements.
+- If the user asks follow-up questions, refer to the previous conversation context.
 - Maintain continuity with previous responses in the conversation.
-- Provide a natural, helpful answer based on the candidate data and conversation history above."""
+- {"أجب باللغة العربية فقط" if user_language == "arabic" else "Respond in English only"}
+- Provide a structured, professional analysis based on the candidate data and conversation history above."""
 
     # Call AI to generate response
     try:

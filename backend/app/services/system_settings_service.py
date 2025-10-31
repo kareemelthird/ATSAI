@@ -27,7 +27,14 @@ class SystemSettingsService:
         if setting.setting_type == 'boolean':
             return setting.setting_value.lower() == 'true'
         elif setting.setting_type == 'number':
-            return int(setting.setting_value) if setting.setting_value else default
+            # Handle both integers and floats
+            try:
+                # Try float first to handle decimal values
+                float_val = float(setting.setting_value) if setting.setting_value else default
+                # Return int if it's a whole number, otherwise return float
+                return int(float_val) if float_val.is_integer() else float_val
+            except (ValueError, AttributeError):
+                return default
         elif setting.setting_type == 'json':
             import json
             return json.loads(setting.setting_value) if setting.setting_value else default

@@ -15,11 +15,21 @@ interface Message {
   role: string
   content: string
   candidates?: CandidateInfo[]
+  timestamp?: Date
+}
+
+interface Conversation {
+  id: string
+  messages: Message[]
+  title: string
+  created_at: string
 }
 
 const AIChat = () => {
   const [query, setQuery] = useState('')
   const [messages, setMessages] = useState<Message[]>([])
+  const [conversations, setConversations] = useState<Conversation[]>([])
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const queryClient = useQueryClient()
 
@@ -38,10 +48,64 @@ const AIChat = () => {
     scrollToBottom()
   }, [messages])
 
-  const { data: history } = useQuery({
-    queryKey: ['ai-history'],
-    queryFn: () => aiApi.getQueryHistory({ limit: 10 }),
-  })
+  // Save conversation to local storage
+  const saveConversation = () => {
+    if (messages.length === 0) return
+    
+    const conversationTitle = messages[0]?.content?.substring(0, 50) + '...' || 'New Conversation'
+    const conversation: Conversation = {
+      id: currentConversationId || Date.now().toString(),
+      messages: messages.map(msg => ({
+        ...msg,
+        timestamp: msg.timestamp || new Date()
+      })),
+      title: conversationTitle,
+      created_at: new Date().toISOString()
+    }
+    
+    const saved = localStorage.getItem('ai-conversations')
+    const existing = saved ? JSON.parse(saved) : []
+    const updated = existing.filter((c: Conversation) => c.id !== conversation.id)
+    updated.unshift(conversation)
+    
+    // Keep only last 20 conversations
+    const limited = updated.slice(0, 20)
+    localStorage.setItem('ai-conversations', JSON.stringify(limited))
+    setConversations(limited)
+    setCurrentConversationId(conversation.id)
+  }
+
+  // Load conversations from local storage
+  useEffect(() => {
+    const saved = localStorage.getItem('ai-conversations')
+    if (saved) {
+      setConversations(JSON.parse(saved))
+    }
+  }, [])
+
+  // Save conversation when messages change
+  useEffect(() => {
+    if (messages.length > 0) {
+      saveConversation()
+    }
+  }, [messages])
+
+  const clearAllConversations = () => {
+    localStorage.removeItem('ai-conversations')
+    setConversations([])
+    setMessages([])
+    setCurrentConversationId(null)
+  }
+
+  const loadConversation = (conversation: Conversation) => {
+    setMessages(conversation.messages)
+    setCurrentConversationId(conversation.id)
+  }
+
+  const startNewConversation = () => {
+    setMessages([])
+    setCurrentConversationId(null)
+  }
 
   // Check if user has personal API key configured
   const { data: aiSettings } = useQuery({
@@ -55,8 +119,8 @@ const AIChat = () => {
   const deleteMutation = useMutation({
     mutationFn: () => aiApi.deleteAllQueries('anonymous'),
     onSuccess: () => {
-      // Clear local messages
-      setMessages([])
+      // Clear local messages and conversations
+      clearAllConversations()
       // Refresh history from server
       queryClient.invalidateQueries({ queryKey: ['ai-history'] })
     },
@@ -78,7 +142,8 @@ const AIChat = () => {
         { 
           role: 'assistant', 
           content: data.data.response,
-          candidates: data.data.candidates || []  // Fixed: use 'candidates' not 'related_candidates'
+          candidates: data.data.candidates || [],
+          timestamp: new Date()
         },
       ])
     },
@@ -113,7 +178,11 @@ const AIChat = () => {
     e.preventDefault()
     if (!query.trim()) return
 
-    setMessages((prev) => [...prev, { role: 'user', content: query }])
+    setMessages((prev) => [...prev, { 
+      role: 'user', 
+      content: query,
+      timestamp: new Date()
+    }])
     chatMutation.mutate(query)
     setQuery('')
   }
@@ -171,15 +240,14 @@ const AIChat = () => {
         {messages.length > 0 && (
           <button
             onClick={() => {
-              if (window.confirm('Delete all chat messages? This will clear the conversation and remove all history.')) {
-                deleteMutation.mutate()
+              if (window.confirm('Delete current conversation? This will clear all messages in this chat.')) {
+                startNewConversation()
               }
             }}
-            disabled={deleteMutation.isPending}
-            className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900 rounded-lg transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900 rounded-lg transition-colors"
           >
             <Trash2 className="w-4 h-4" />
-            {deleteMutation.isPending ? 'Deleting...' : 'Delete Chat'}
+            Clear Chat
           </button>
         )}
       </div>
@@ -341,79 +409,66 @@ const AIChat = () => {
           </div>
         </div>
 
-        {/* Recent Messages Sidebar */}
+        {/* Conversation History Sidebar */}
         <div className="lg:col-span-1">
           <div className="card" style={{ height: 'calc(100vh - 200px)', display: 'flex', flexDirection: 'column' }}>
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                Recent Messages
+                Conversations
               </h2>
-              {history?.data && history.data.length > 0 && (
+              <div className="flex gap-2">
                 <button
-                  onClick={() => {
-                    if (window.confirm('Delete all chat history? This cannot be undone.')) {
-                      deleteMutation.mutate()
-                    }
-                  }}
-                  disabled={deleteMutation.isPending}
-                  className="text-xs text-red-600 hover:text-red-700 dark:hover:text-red-400 transition-colors disabled:opacity-50"
-                  title="Delete all chat history"
+                  onClick={startNewConversation}
+                  className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
                 >
-                  <Trash2 className="w-4 h-4" />
+                  New Chat
                 </button>
-              )}
+                {conversations.length > 0 && (
+                  <button
+                    onClick={() => {
+                      if (window.confirm('Delete all conversation history? This cannot be undone.')) {
+                        clearAllConversations()
+                      }
+                    }}
+                    className="text-xs text-red-600 hover:text-red-700 dark:hover:text-red-400 transition-colors"
+                    title="Delete all conversations"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
-              Click to add to current conversation
+              Click to load a previous conversation
             </p>
             <div className="flex-1 overflow-y-auto space-y-3">
-              {history?.data?.slice(0, 10).map((item: any) => (
+              {conversations.map((conversation) => (
                 <div
-                  key={item.id}
-                  className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
-                  onClick={() => {
-                    // Add this exchange to current conversation
-                    // Note: History only has candidate IDs, not names
-                    // For now, just show IDs or skip candidates in history
-                    const candidates = (item.related_candidates || []).map((id: string) => ({
-                      id: id,
-                      name: `Candidate ${id.substring(0, 8)}...`  // Fallback display
-                    }))
-                    
-                    setMessages((prev) => [
-                      ...prev,
-                      { role: 'user', content: item.query_text },
-                      { 
-                        role: 'assistant', 
-                        content: item.response,
-                        candidates: candidates
-                      },
-                    ])
-                  }}
+                  key={conversation.id}
+                  className={`p-3 rounded-lg cursor-pointer transition-colors ${
+                    currentConversationId === conversation.id
+                      ? 'bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800'
+                      : 'bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600'
+                  }`}
+                  onClick={() => loadConversation(conversation)}
                 >
-                  <div className="flex items-start gap-2 mb-2">
-                    <User className="w-4 h-4 text-primary-600 dark:text-primary-400 flex-shrink-0 mt-0.5" />
-                    <p className="text-sm text-gray-900 dark:text-white font-medium line-clamp-2">
-                      {item.query_text}
-                    </p>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <Bot className="w-4 h-4 text-purple-600 dark:text-purple-400 flex-shrink-0 mt-0.5" />
-                    <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2">
-                      {item.response?.substring(0, 100)}...
-                    </p>
-                  </div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 flex items-center gap-1">
-                    <span>{new Date(item.timestamp).toLocaleDateString()}</span>
+                  <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-1 line-clamp-2">
+                    {conversation.title}
+                  </h3>
+                  <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">
+                    {conversation.messages.length} messages
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                    <span>{new Date(conversation.created_at).toLocaleDateString()}</span>
                     <span>•</span>
-                    <span>{new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    <span>{new Date(conversation.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                   </p>
                 </div>
               ))}
-              {(!history?.data || history.data.length === 0) && (
+              {conversations.length === 0 && (
                 <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-                  <p className="text-sm">No chat history yet</p>
-                  <p className="text-xs mt-1">Start a conversation!</p>
+                  <p className="text-sm">No conversations yet</p>
+                  <p className="text-xs mt-1">Start chatting to see history!</p>
                 </div>
               )}
             </div>

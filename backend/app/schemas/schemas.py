@@ -82,6 +82,7 @@ class CandidateResponse(CandidateBase):
     willing_to_travel: Optional[bool] = None
     professional_summary: Optional[str] = None
     career_level: Optional[str] = None
+    years_of_experience: Optional[int] = None
     availability_status: Optional[str] = None
     notice_period_days: Optional[int] = None
     current_salary_currency: Optional[str] = None

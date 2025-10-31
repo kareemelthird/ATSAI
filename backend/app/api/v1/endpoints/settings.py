@@ -223,6 +223,24 @@ def get_all_settings_definitions() -> List[Dict[str, Any]]:
             "requires_restart": True
         },
         
+        # AI Instruction Settings
+        {
+            "category": "ai_provider",
+            "key": "resume_analysis_instructions",
+            "label": "Resume Analysis Instructions",
+            "description": "System instructions for AI resume analysis and extraction",
+            "data_type": "text",
+            "requires_restart": False
+        },
+        {
+            "category": "ai_provider",
+            "key": "chat_system_instructions",
+            "label": "Chat System Instructions",
+            "description": "System instructions for AI chat interactions and responses",
+            "data_type": "text",
+            "requires_restart": False
+        },
+        
         # Application Settings
         {
             "category": "application",

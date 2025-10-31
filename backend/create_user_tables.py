@@ -31,10 +31,16 @@ def seed_admin_user():
     """Create initial super admin user"""
     print("\n👤 Creating super admin user...")
     
+    import os
+    
     db = SessionLocal()
     try:
+        # Get credentials from environment or use defaults
+        admin_email = os.getenv('ADMIN_EMAIL', 'admin@ats.com')
+        admin_password = os.getenv('ADMIN_PASSWORD', 'ChangeMe123!')
+        
         # Check if admin already exists
-        admin = db.query(User).filter(User.email == "admin@ats.com").first()
+        admin = db.query(User).filter(User.email == admin_email).first()
         
         if admin:
             print("⚠️  Super admin already exists")
@@ -44,9 +50,9 @@ def seed_admin_user():
         # Create super admin
         admin = User(
             id=uuid.uuid4(),
-            email="admin@ats.com",
+            email=admin_email,
             username="admin",
-            hashed_password=hash_password("Admin@123"),
+            hashed_password=hash_password(admin_password),
             first_name="Super",
             last_name="Admin",
             role=UserRole.SUPER_ADMIN,
@@ -59,9 +65,9 @@ def seed_admin_user():
         db.commit()
         
         print("✅ Super admin created successfully!")
-        print("   📧 Email: admin@ats.com")
-        print("   🔐 Password: Admin@123")
-        print("   ⚠️  Please change this password after first login!")
+        print(f"   📧 Email: {admin_email}")
+        print(f"   🔐 Password: {admin_password}")
+        print("   ⚠️  IMPORTANT: Change this password after first login!")
         
     except Exception as e:
         print(f"❌ Error creating admin: {e}")
@@ -269,8 +275,8 @@ def main():
         print("✅ Installation completed successfully!")
         print("=" * 60)
         print("\n📋 Next Steps:")
-        print("1. Login with: admin@ats.com / Admin@123")
-        print("2. Change the admin password")
+        print(f"1. Login with: {admin_email} / {admin_password}")
+        print("2. Change the admin password immediately")
         print("3. Configure AI provider settings")
         print("4. Create additional users")
         print("\n🚀 Start the backend server and test the login endpoint!")

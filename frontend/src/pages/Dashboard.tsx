@@ -40,6 +40,16 @@ const Dashboard = () => {
     }
   }, [aiSettings])
 
+  // Calculate active today (candidates updated or created today)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  
+  const activeToday = candidates?.data?.filter((candidate: any) => {
+    const updatedAt = new Date(candidate.updated_at || candidate.created_at)
+    const createdAt = new Date(candidate.created_at)
+    return updatedAt >= today || createdAt >= today
+  }).length || 0
+
   const stats = [
     {
       title: 'Total Candidates',
@@ -61,7 +71,7 @@ const Dashboard = () => {
     },
     {
       title: 'Active Today',
-      value: 12,
+      value: activeToday,
       icon: TrendingUp,
       color: 'bg-orange-500',
     },

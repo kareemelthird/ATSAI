@@ -20,6 +20,37 @@ from app.db.models_users import User
 router = APIRouter()
 
 
+def calculate_total_years_of_experience(db: Session, candidate_id: UUID) -> int:
+    """Calculate total years of experience from all work experience records"""
+    try:
+        work_experiences = db.query(models.WorkExperience).filter(
+            models.WorkExperience.candidate_id == candidate_id
+        ).all()
+        
+        if not work_experiences:
+            return 0
+            
+        total_months = 0
+        for exp in work_experiences:
+            if exp.duration_months:
+                total_months += exp.duration_months
+            elif exp.start_date:
+                # Calculate duration if not stored
+                end_date = exp.end_date or datetime.utcnow().date()
+                if exp.start_date <= end_date:
+                    delta = end_date - exp.start_date
+                    months = round(delta.days / 30.44)  # Average days per month
+                    total_months += months
+        
+        # Convert months to years, rounded to nearest integer
+        total_years = round(total_months / 12)
+        return max(0, min(total_years, 50))  # Cap at 50 years for sanity
+        
+    except Exception as e:
+        print(f"⚠️ Error calculating total years of experience: {e}")
+        return 0
+
+
 @router.post("/", response_model=CandidateResponse, status_code=status.HTTP_201_CREATED)
 def create_candidate(
     candidate: CandidateCreate,
@@ -144,6 +175,7 @@ def get_candidate(
         'willing_to_travel': candidate.willing_to_travel,
         'professional_summary': candidate.professional_summary,
         'career_level': candidate.career_level,
+        'years_of_experience': candidate.years_of_experience,
         'availability_status': candidate.availability_status,
         'notice_period_days': candidate.notice_period_days,
         'current_salary_currency': candidate.current_salary_currency,
@@ -322,7 +354,7 @@ def update_candidate(
                 exp = models.WorkExperience(
                     candidate_id=candidate_id,
                     company_name=exp_data.get('company_name', ''),
-                    position=exp_data.get('position', ''),
+                    job_title=exp_data.get('position', ''),  # Map 'position' to 'job_title'
                     start_date=start_date,
                     end_date=end_date,
                     responsibilities=exp_data.get('responsibilities'),
@@ -355,12 +387,12 @@ def update_candidate(
                 
                 edu = models.Education(
                     candidate_id=candidate_id,
-                    institution_name=edu_data.get('institution_name', ''),
+                    institution=edu_data.get('institution_name', ''),  # Map 'institution_name' to 'institution'
                     degree=edu_data.get('degree', ''),
                     field_of_study=edu_data.get('field_of_study'),
                     start_date=start_date,
                     end_date=end_date,
-                    grade=edu_data.get('grade')
+                    grade_value=edu_data.get('grade')  # Map 'grade' to 'grade_value'
                 )
                 db.add(edu)
         
@@ -447,6 +479,10 @@ def update_candidate(
         
         # Update the updated_at timestamp
         candidate.updated_at = datetime.utcnow()
+        
+        # Recalculate total years of experience from work experience records
+        total_years = calculate_total_years_of_experience(db, candidate_id)
+        candidate.years_of_experience = total_years
         
         db.commit()
         db.refresh(candidate)

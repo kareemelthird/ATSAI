@@ -373,15 +373,6 @@ export default function Login() {
             {isLogin ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
           </button>
         </div>
-
-        {/* Demo Credentials */}
-        {isLogin && (
-          <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <p className="text-sm font-medium text-yellow-800 mb-2">Demo Credentials:</p>
-            <p className="text-xs text-yellow-700">Email: admin@ats.com</p>
-            <p className="text-xs text-yellow-700">Password: Admin@123</p>
-          </div>
-        )}
       </div>
     </div>
   );
