@@ -48,6 +48,11 @@ try {
             $versionNum = [Version]$matches[1]
             if ($versionNum -ge [Version]"3.9.0") {
                 Write-Host "✅ $pythonVersion (OK)" -ForegroundColor Green
+                
+                # Check for Python 3.13+ compatibility note
+                if ($versionNum -ge [Version]"3.13.0") {
+                    $warnings += "⚠️  Python 3.13+ detected - ensure latest package versions are used for compatibility"
+                }
             } else {
                 $errors += "❌ Python version $pythonVersion is below required 3.9.0"
             }

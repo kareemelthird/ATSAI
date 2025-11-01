@@ -38,12 +38,26 @@ try {
 
     # Install Python dependencies
     Write-Host "   Installing Python dependencies..."
-    $pipResult = pip install -r requirements.txt 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        $errors += "❌ Backend dependencies installation failed"
-        Write-Host "❌ pip install failed" -ForegroundColor Red
-    } else {
-        Write-Host "✅ Backend dependencies installed" -ForegroundColor Green
+    try {
+        # Try pip first
+        $pipResult = pip install -r requirements.txt 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "✅ Backend dependencies installed" -ForegroundColor Green
+        } else {
+            # Try python -m pip as fallback
+            Write-Host "   Trying alternative installation method..."
+            $pipResult = python -m pip install -r requirements.txt 2>&1
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "✅ Backend dependencies installed (using python -m pip)" -ForegroundColor Green
+            } else {
+                $errors += "❌ Backend dependencies installation failed: $pipResult"
+                Write-Host "❌ pip install failed" -ForegroundColor Red
+                Write-Host "Error details: $pipResult" -ForegroundColor Red
+            }
+        }
+    } catch {
+        $errors += "❌ Backend dependencies installation error: $($_.Exception.Message)"
+        Write-Host "❌ pip install error" -ForegroundColor Red
     }
 
     # Setup environment file
@@ -126,11 +140,22 @@ try {
     
     # Check if we can import main backend modules
     Set-Location backend
-    $pythonTest = python -c "import app.main; print('Backend imports OK')" 2>&1
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "✅ Backend Python imports working" -ForegroundColor Green
-    } else {
-        $warnings += "⚠️  Backend Python imports may have issues: $pythonTest"
+    try {
+        $pythonTest = python -c "import app.main; print('Backend imports OK')" 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "✅ Backend Python imports working" -ForegroundColor Green
+        } else {
+            # Try to give more specific information about the import issue
+            Write-Host "⚠️  Testing individual imports..." -ForegroundColor Yellow
+            $basicTest = python -c "import sys; print('Python basic imports OK')" 2>&1
+            if ($LASTEXITCODE -eq 0) {
+                $warnings += "⚠️  Backend Python imports may have issues (dependencies installed but app import failed): $pythonTest"
+            } else {
+                $warnings += "⚠️  Python basic imports failing: $basicTest"
+            }
+        }
+    } catch {
+        $warnings += "⚠️  Backend Python import test error: $($_.Exception.Message)"
     }
     
     Set-Location ../frontend
