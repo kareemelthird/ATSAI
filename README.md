@@ -90,7 +90,7 @@
 
 ### Prerequisites
 
-- Python 3.11+
+- Python 3.11-3.12 (Python 3.13+ has compatibility issues with some packages)
 - Node.js 18+
 - PostgreSQL 15+
 - [Groq API Key](https://console.groq.com) (Free tier available)

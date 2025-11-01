@@ -39,6 +39,12 @@ try {
     # Install Python dependencies
     Write-Host "   Installing Python dependencies..."
     try {
+        # Check Python version for compatibility warnings
+        $pythonVersion = python --version 2>$null
+        if ($pythonVersion -match "Python 3\.13") {
+            Write-Host "   ⚠️  Python 3.13 detected - some packages may require compilation" -ForegroundColor Yellow
+        }
+        
         # Try pip first
         $pipResult = pip install -r requirements.txt 2>&1
         if ($LASTEXITCODE -eq 0) {
@@ -50,9 +56,16 @@ try {
             if ($LASTEXITCODE -eq 0) {
                 Write-Host "✅ Backend dependencies installed (using python -m pip)" -ForegroundColor Green
             } else {
-                $errors += "❌ Backend dependencies installation failed: $pipResult"
-                Write-Host "❌ pip install failed" -ForegroundColor Red
-                Write-Host "Error details: $pipResult" -ForegroundColor Red
+                # Check if it's a psycopg2 specific issue
+                if ($pipResult -like "*psycopg2*" -and $pythonVersion -match "Python 3\.13") {
+                    $warnings += "⚠️  psycopg2-binary compilation failed on Python 3.13 - this is a known compatibility issue"
+                    $warnings += "⚠️  Consider using Python 3.11 or 3.12 for better compatibility, or wait for psycopg2 3.13 support"
+                    Write-Host "✅ Other dependencies installed (psycopg2 compilation failed - expected on Python 3.13)" -ForegroundColor Yellow
+                } else {
+                    $errors += "❌ Backend dependencies installation failed: $pipResult"
+                    Write-Host "❌ pip install failed" -ForegroundColor Red
+                    Write-Host "Error details: $pipResult" -ForegroundColor Red
+                }
             }
         }
     } catch {

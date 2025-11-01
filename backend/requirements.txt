@@ -1,8 +1,9 @@
 # Backend Python Dependencies
+# Note: For Python 3.13+ compatibility, some packages may require newer versions
 fastapi==0.115.0
 uvicorn[standard]==0.30.0
 sqlalchemy==2.0.36
-psycopg2-binary==2.9.9
+psycopg2-binary==2.9.9  # Note: May not compile on Python 3.13+, use Python 3.11-3.12 for best compatibility
 pydantic==2.9.0
 pydantic-settings==2.6.0
 python-multipart==0.0.12
