@@ -10,7 +10,7 @@
 
 **A modern, AI-powered Applicant Tracking System that revolutionizes recruitment with intelligent CV analysis and natural language search.**
 
-[🚀 Live Demo](#) • [📖 Documentation](#installation) • [🐛 Report Bug](../../issues) • [💡 Request Feature](../../issues)
+[ Documentation](#installation) • [🐛 Report Bug](../../issues) • [💡 Request Feature](../../issues)
 
 </div>
 
@@ -175,23 +175,6 @@ After installation, log in with your configured admin credentials:
 - **Password**: Set via `ADMIN_PASSWORD` environment variable
 
 > ⚠️ **Security Note**: Change the admin password immediately after first login!
-
----
-
-## 📱 Screenshots
-
-<div align="center">
-
-### Dashboard Overview
-![Dashboard](https://via.placeholder.com/800x400/2563eb/ffffff?text=Dashboard+Overview)
-
-### AI-Powered Search
-![AI Search](https://via.placeholder.com/800x400/059669/ffffff?text=Natural+Language+Search)
-
-### Candidate Management
-![Candidates](https://via.placeholder.com/800x400/dc2626/ffffff?text=Candidate+Profiles)
-
-</div>
 
 ---
 
