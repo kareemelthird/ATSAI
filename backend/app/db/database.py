@@ -3,24 +3,23 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from app.core.config import settings
 
-# Configure engine with production-optimized settings and SSL for Supabase
+# Configure engine with production-optimized settings for Vercel serverless
 connect_args = {}
 if "supabase.co" in settings.DATABASE_URL:
-    # Supabase SSL configuration
+    # Supabase configuration optimized for serverless
     connect_args = {
         "sslmode": "require",
-        "sslcert": None,
-        "sslkey": None,
-        "sslrootcert": None,
-        "connect_timeout": 10
+        "connect_timeout": 15,
+        "application_name": "ats-vercel-app"
     }
 
+# Create engine optimized for serverless with minimal pooling
 engine = create_engine(
     settings.DATABASE_URL,
     pool_pre_ping=True,
-    pool_recycle=300,  # Recycle connections every 5 minutes
-    pool_size=2,  # Reduce pool size for serverless
-    max_overflow=0,
+    pool_recycle=300,  # Recycle connections every 5 minutes  
+    pool_size=1,  # Minimal pool for serverless
+    max_overflow=0,  # No overflow for serverless
     echo=False,  # Disable SQL logging in production
     connect_args=connect_args
 )
