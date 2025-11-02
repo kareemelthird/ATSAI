@@ -93,7 +93,6 @@ async def upload_resume_auto(
         except Exception as ai_error:
             print(f"AI analysis failed: {ai_error}")
             # Fallback: Create a basic candidate record without AI analysis
-            from datetime import datetime
             import uuid
             
             # Extract basic info from filename if possible
