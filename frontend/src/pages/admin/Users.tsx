@@ -76,6 +76,7 @@ export default function AdminUsers() {
       if (statusFilter) params.append('status', statusFilter);
       
       const response = await api.get(`/users/?${params}`);
+      console.log('🔍 Users API Response:', response.data);
       setUsers(response.data);
       setError('');
     } catch (err: any) {
