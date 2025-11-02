@@ -12,8 +12,9 @@ logger = logging.getLogger(__name__)
 # This avoids potential errors during startup
 try:
     # Test database connection
+    from sqlalchemy import text
     with engine.connect() as connection:
-        connection.execute("SELECT 1")
+        connection.execute(text("SELECT 1"))
     logger.info("✓ Database connection successful")
 except Exception as e:
     logger.error(f"❌ Database connection failed: {e}")
