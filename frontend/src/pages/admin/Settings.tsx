@@ -26,15 +26,67 @@ export default function AdminSettings() {
   const [testResult, setTestResult] = useState<{success: boolean; message: string} | null>(null);
   const [restartingServer, setRestartingServer] = useState(false);
   const [restartResult, setRestartResult] = useState<{success: boolean; message: string} | null>(null);
+  const [debugMode, setDebugMode] = useState(false);
 
   useEffect(() => {
     fetchSettings();
   }, []);
 
+  // Debug function to test direct API call
+  const testDirectAPICall = async () => {
+    console.log('🧪 Testing direct API call...');
+    setDebugMode(true);
+    
+    try {
+      const token = localStorage.getItem('access_token');
+      const directResponse = await fetch('/api/v1/settings/', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      console.log('Direct fetch response:', directResponse.status);
+      
+      if (directResponse.ok) {
+        const data = await directResponse.json();
+        console.log('Direct fetch data:', data);
+        setSettings(data);
+        setError('✅ Direct API call succeeded!');
+        
+        // Initialize edited values
+        const values: Record<string, string> = {};
+        data.forEach((setting: Setting) => {
+          values[setting.key] = setting.value;
+        });
+        setEditedValues(values);
+      } else {
+        const errorText = await directResponse.text();
+        console.log('Direct fetch error:', errorText);
+        setError(`Direct API call failed: ${directResponse.status} - ${errorText}`);
+      }
+    } catch (error) {
+      console.error('Direct fetch exception:', error);
+      setError(`Direct API call exception: ${error}`);
+    }
+    
+    setLoading(false);
+    setDebugMode(false);
+  };
+
   const fetchSettings = async () => {
     try {
       setLoading(true);
+      setError('');
+      
       console.log('🔄 Fetching settings...');
+      console.log('🔑 Access token:', localStorage.getItem('access_token') ? 'EXISTS' : 'MISSING');
+      console.log('🔄 Refresh token:', localStorage.getItem('refresh_token') ? 'EXISTS' : 'MISSING');
+      console.log('👤 User data:', localStorage.getItem('user') ? 'EXISTS' : 'MISSING');
+      
+      // Debug the API base URL
+      console.log('🌐 API base URL:', api.defaults.baseURL);
+      
       const response = await api.get('/settings/');
       console.log('✅ Settings response:', response.status, response.data);
       console.log('📊 Settings count:', response.data?.length);
@@ -52,6 +104,8 @@ export default function AdminSettings() {
       console.error('❌ Error fetching settings:', err);
       console.error('Response status:', err.response?.status);
       console.error('Response data:', err.response?.data);
+      console.error('Request URL:', err.config?.url);
+      console.error('Request headers:', err.config?.headers);
       
       if (err.response?.status === 401) {
         setError('Authentication expired. Please log out and log back in.');
@@ -220,14 +274,24 @@ export default function AdminSettings() {
               Configure system-wide settings and preferences (stored in .env file)
             </p>
           </div>
-          <button
-            onClick={handleRestartServer}
-            disabled={restartingServer}
-            className="flex items-center px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Power className={`w-5 h-5 mr-2 ${restartingServer ? 'animate-spin' : ''}`} />
-            {restartingServer ? 'Restarting...' : 'Restart Server'}
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={testDirectAPICall}
+              disabled={debugMode}
+              className="flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <TestTube className={`w-5 h-5 mr-2 ${debugMode ? 'animate-spin' : ''}`} />
+              {debugMode ? 'Testing...' : 'Debug API'}
+            </button>
+            <button
+              onClick={handleRestartServer}
+              disabled={restartingServer}
+              className="flex items-center px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Power className={`w-5 h-5 mr-2 ${restartingServer ? 'animate-spin' : ''}`} />
+              {restartingServer ? 'Restarting...' : 'Restart Server'}
+            </button>
+          </div>
         </div>
       </div>
 
