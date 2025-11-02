@@ -52,29 +52,39 @@ async def upload_resume_auto(
         try:
             extracted_text = parse_pdf(str(temp_file_path))
             if not extracted_text or extracted_text.strip() == "":
-                raise Exception("PDF appears to be empty or contains no extractable text")
+                # Handle PDFs with no extractable text (images, scanned documents)
+                extracted_text = "[PDF contains no extractable text - may be image-based or scanned document]"
+                print(f"Warning: PDF has no extractable text: {file.filename}")
         except Exception as pdf_error:
-            print(f"PDF parsing failed: {pdf_error}")
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Failed to parse PDF file: {str(pdf_error)}. Please ensure the PDF is not corrupted and contains text."
-            )
+            print(f"PDF parsing failed for {file.filename}: {pdf_error}")
+            # Instead of failing completely, create a fallback text
+            extracted_text = f"[PDF parsing failed: {str(pdf_error)[:100]}...]"
+            print(f"Using fallback text for PDF: {file.filename}")
         
         # Use AI to analyze resume and extract structured data
         # This will create the candidate and all related records automatically
         # Pass current_user to use their personal API key if configured
         try:
             ai_result = await analyze_resume(extracted_text, None, db, current_user)
+            if not ai_result or not ai_result.get('candidate_id'):
+                raise Exception("AI analysis returned no candidate information")
         except Exception as ai_error:
             print(f"AI analysis failed: {ai_error}")
             # Fallback: Create a basic candidate record without AI analysis
             from datetime import datetime
             import uuid
             
+            # Extract basic info from filename if possible
+            base_filename = os.path.splitext(file.filename)[0]
+            name_parts = base_filename.replace('_', ' ').replace('-', ' ').split()
+            
+            first_name = name_parts[0] if name_parts else "Unknown"
+            last_name = name_parts[1] if len(name_parts) > 1 else "Candidate"
+            
             candidate = models.Candidate(
-                first_name="Unknown",
-                last_name="Candidate", 
-                email=f"candidate_{uuid.uuid4().hex[:8]}@temp.com",
+                first_name=first_name,
+                last_name=last_name, 
+                email=f"candidate_{uuid.uuid4().hex[:8]}@example.com",
                 created_at=datetime.utcnow(),
                 updated_at=datetime.utcnow()
             )
