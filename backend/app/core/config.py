@@ -53,7 +53,7 @@ class Settings(BaseSettings):
     AI_MODEL: str = os.getenv("AI_MODEL", os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"))
     
     # File Upload
-    UPLOAD_DIR: str = "uploads/resumes"
+    UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", "/tmp/uploads" if os.getenv("VERCEL") else "uploads/resumes")
     MAX_FILE_SIZE: int = 10 * 1024 * 1024  # 10MB
     ALLOWED_EXTENSIONS: List[str] = [".pdf", ".doc", ".docx"]
     
