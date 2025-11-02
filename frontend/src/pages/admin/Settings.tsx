@@ -1,9 +1,6 @@
 import { Settings as SettingsIcon, Save, Check, X, Loader, AlertCircle, TestTube, RefreshCw, Power } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import axios from 'axios';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-const API_URL = `${API_BASE_URL}/api/v1`;
+import { api } from '../../services/api';
 
 interface Setting {
   category: string;
@@ -37,7 +34,7 @@ export default function AdminSettings() {
   const fetchSettings = async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`${API_URL}/settings/`);
+      const response = await api.get('/settings/');
       setSettings(response.data);
       setError('');
       
@@ -61,7 +58,7 @@ export default function AdminSettings() {
 
   const handleSaveSetting = async (setting: Setting) => {
     try {
-      const response = await axios.put(`${API_URL}/settings/${setting.key}`, {
+      const response = await api.put(`/settings/${setting.key}`, {
         value: editedValues[setting.key]
       });
       
@@ -93,7 +90,7 @@ export default function AdminSettings() {
       // If so, tell backend to use the actual value from .env
       const useStoredKey = !apiKey || apiKey === '***ENCRYPTED***';
       
-      const response = await axios.post(`${API_URL}/settings/test-ai-connection`, {
+      const response = await api.post('/settings/test-ai-connection', {
         provider,
         api_key: useStoredKey ? undefined : apiKey,
         model,
@@ -120,7 +117,7 @@ export default function AdminSettings() {
       setRestartingServer(true);
       setRestartResult(null);
       
-      const response = await axios.post(`${API_URL}/settings/restart-server`);
+      const response = await api.post('/settings/restart-server');
       
       setRestartResult({
         success: true,
@@ -138,7 +135,7 @@ export default function AdminSettings() {
       // Try to reconnect after 5 seconds
       setTimeout(async () => {
         try {
-          await axios.get(`${API_URL}/settings/`);
+          await api.get('/settings/');
           setRestartResult({
             success: true,
             message: 'Server restarted successfully! Page will reload...'
