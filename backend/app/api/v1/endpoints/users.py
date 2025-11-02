@@ -122,8 +122,6 @@ async def list_users(
     
     if status:
         query = query.filter(User.status == status)
-        except ValueError:
-            pass
     
     # Get users
     users = query.offset(skip).limit(limit).all()
