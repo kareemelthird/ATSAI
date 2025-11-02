@@ -48,6 +48,14 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
     
+    // Debug logging
+    console.log('API Error:', {
+      status: error.response?.status,
+      url: originalRequest?.url,
+      hasRefreshToken: !!localStorage.getItem('refresh_token'),
+      isRetry: !!originalRequest._retry
+    });
+    
     // If 401 and not already retrying
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
@@ -55,18 +63,26 @@ api.interceptors.response.use(
       const refreshToken = localStorage.getItem('refresh_token');
       if (refreshToken) {
         try {
-          // Try to refresh the token
-          const response = await axios.post(`${API_BASE_URL}/api/v1/auth/refresh`, {
+          // Try to refresh the token - use a fresh axios instance to avoid circular interceptor calls
+          const refreshResponse = await axios.create({
+            baseURL: API_BASE_URL,
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          }).post('/api/v1/auth/refresh', {
             refresh_token: refreshToken
           });
           
-          const { access_token } = response.data;
+          const { access_token } = refreshResponse.data;
           localStorage.setItem('access_token', access_token);
+          
+          console.log('Token refreshed successfully');
           
           // Retry the original request
           originalRequest.headers.Authorization = `Bearer ${access_token}`;
           return api(originalRequest);
         } catch (refreshError) {
+          console.log('Token refresh failed:', refreshError);
           // Refresh failed, clear tokens and redirect to login
           localStorage.removeItem('access_token');
           localStorage.removeItem('refresh_token');

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { api } from '../lib/api';
 
 // Use the same API configuration as the rest of the app
 const getAPIBaseURL = () => {
@@ -49,9 +50,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (token && storedUser) {
       try {
-        // Verify token is still valid by fetching profile
-        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-        const response = await axios.get(`${API_BASE_URL}/api/v1/auth/me`);
+        // Verify token is still valid by fetching profile using our configured api
+        const response = await api.get('/auth/me');
         setUser(response.data);
       } catch (error) {
         // Token invalid, clear storage
@@ -68,7 +68,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const login = async (email: string, password: string) => {
-    const response = await axios.post(`${API_BASE_URL}/api/v1/auth/login`, {
+    const response = await api.post('/auth/login', {
       email,
       password
     });
@@ -80,7 +80,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem('refresh_token', refresh_token);
     localStorage.setItem('user', JSON.stringify(userData));
 
-    // Set axios header
+    // Set axios header for immediate use
     axios.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
 
     setUser(userData);
@@ -88,7 +88,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     try {
-      await axios.post(`${API_BASE_URL}/api/v1/auth/logout`);
+      await api.post('/auth/logout');
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
