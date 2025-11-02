@@ -454,16 +454,12 @@ async def change_user_role(
         )
     
     # Only Super Admin can create/modify Super Admins and Admins
-    # Exception: allow admin@ats.com to promote themselves to super_admin (one-time setup)
+    # Temporary exception: allow admin@ats.com to self-promote (one-time setup)
     if role_data.role in ["super_admin", "admin"]:
-        is_admin_self_promotion = (
-            current_user.email == "admin@ats.com" and 
-            current_user.role == "admin" and 
-            str(user_id) == str(current_user.id) and
-            role_data.role == "super_admin"
-        )
-        
-        if current_user.role != "super_admin" and not is_admin_self_promotion:
+        # Allow admin@ats.com to promote themselves
+        if current_user.email == "admin@ats.com" and str(user_id) == str(current_user.id):
+            print(f"🔧 Allowing self-promotion for admin@ats.com: {current_user.role} -> {role_data.role}")
+        elif current_user.role != "super_admin":
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Only Super Admin can assign Admin roles"
