@@ -37,8 +37,8 @@ class UserUpdate(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     phone: Optional[str] = None
-    role: Optional[UserRole] = None
-    status: Optional[UserStatus] = None
+    role: Optional[str] = None
+    status: Optional[str] = None
     department: Optional[str] = None
     job_title: Optional[str] = None
 
@@ -61,7 +61,7 @@ class UserResponse(BaseModel):
 
 
 class ChangeRoleRequest(BaseModel):
-    role: UserRole
+    role: str
 
 
 # Helper function to check admin access
@@ -118,16 +118,10 @@ async def list_users(
     query = db.query(User)
     
     if role:
-        try:
-            role_enum = UserRole(role)
-            query = query.filter(User.role == role_enum)
-        except ValueError:
-            pass
+        query = query.filter(User.role == role)
     
     if status:
-        try:
-            status_enum = UserStatus(status)
-            query = query.filter(User.status == status_enum)
+        query = query.filter(User.status == status)
         except ValueError:
             pass
     
