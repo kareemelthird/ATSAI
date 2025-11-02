@@ -6,14 +6,20 @@ from app.core.config import settings
 # Configure engine with production-optimized settings and SSL for Supabase
 connect_args = {}
 if "supabase.co" in settings.DATABASE_URL:
-    # Add SSL configuration for Supabase
-    connect_args = {"sslmode": "require"}
+    # Supabase SSL configuration
+    connect_args = {
+        "sslmode": "require",
+        "sslcert": None,
+        "sslkey": None,
+        "sslrootcert": None,
+        "connect_timeout": 10
+    }
 
 engine = create_engine(
     settings.DATABASE_URL,
     pool_pre_ping=True,
     pool_recycle=300,  # Recycle connections every 5 minutes
-    pool_size=5,
+    pool_size=2,  # Reduce pool size for serverless
     max_overflow=0,
     echo=False,  # Disable SQL logging in production
     connect_args=connect_args
