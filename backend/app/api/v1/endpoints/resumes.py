@@ -54,7 +54,28 @@ async def upload_resume_auto(
         # Use AI to analyze resume and extract structured data
         # This will create the candidate and all related records automatically
         # Pass current_user to use their personal API key if configured
-        ai_result = await analyze_resume(extracted_text, None, db, current_user)
+        try:
+            ai_result = await analyze_resume(extracted_text, None, db, current_user)
+        except Exception as ai_error:
+            print(f"AI analysis failed: {ai_error}")
+            # Fallback: Create a basic candidate record without AI analysis
+            from datetime import datetime
+            import uuid
+            
+            candidate = models.Candidate(
+                first_name="Unknown",
+                last_name="Candidate", 
+                email=f"candidate_{uuid.uuid4().hex[:8]}@temp.com",
+                created_at=datetime.utcnow(),
+                updated_at=datetime.utcnow()
+            )
+            db.add(candidate)
+            db.flush()
+            
+            ai_result = {
+                'candidate_id': str(candidate.id),
+                'note': 'Created without AI analysis due to processing error'
+            }
         
         if not ai_result or not ai_result.get('candidate_id'):
             raise HTTPException(
@@ -100,14 +121,32 @@ async def upload_resume_auto(
         
     except Exception as e:
         # Clean up temp file if it exists
-        if temp_file_path.exists():
-            os.remove(temp_file_path)
+        if temp_file_path and temp_file_path.exists():
+            try:
+                os.remove(temp_file_path)
+            except:
+                pass
         
-        # Log the error and return meaningful message
-        print(f"Error processing resume: {str(e)}")
+        # Log the detailed error for debugging
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Error processing resume upload: {str(e)}")
+        print(f"Full traceback: {error_details}")
+        
+        # Return user-friendly error message
+        error_msg = str(e)
+        if "AI" in error_msg or "analyze" in error_msg.lower():
+            error_msg = "AI processing failed. Please try again or contact support if the issue persists."
+        elif "file" in error_msg.lower() or "path" in error_msg.lower():
+            error_msg = "File processing failed. Please ensure the PDF is not corrupted."
+        elif "database" in error_msg.lower():
+            error_msg = "Database error occurred. Please try again."
+        else:
+            error_msg = f"Error processing resume: {str(e)}"
+        
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error processing resume: {str(e)}"
+            detail=error_msg
         )
 
 
