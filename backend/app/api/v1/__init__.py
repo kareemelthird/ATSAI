@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import candidates, resumes, jobs, applications, ai_chat, auth, users, settings, profile, admin_settings, health
+from app.api.v1.endpoints import candidates, resumes, jobs, applications, ai_chat, auth, users, settings, profile, admin_settings, health, test_upload
 from app.api.v1 import ai_settings
 
 router = APIRouter()
@@ -23,3 +23,6 @@ router.include_router(resumes.router, prefix="/resumes", tags=["resumes"])
 router.include_router(jobs.router, prefix="/jobs", tags=["jobs"])
 router.include_router(applications.router, prefix="/applications", tags=["applications"])
 router.include_router(ai_chat.router, prefix="/ai", tags=["ai-chat"])
+
+# Debug endpoints
+router.include_router(test_upload.router, prefix="/debug", tags=["debug"])
