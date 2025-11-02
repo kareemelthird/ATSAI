@@ -8,18 +8,16 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Create database tables (commented out - run migrations script instead)
-# Note: Database must exist before running this application
-# Run: python backend/create_database.py to create the database
-# Run: python backend/create_tables.py to create all tables
+# Skip table creation in production since tables already exist
+# This avoids potential errors during startup
 try:
-    # Debug: show which DATABASE_URL is being used at startup
-    logger.info(f"Database URL at startup: {settings.DATABASE_URL}")
-    models.Base.metadata.create_all(bind=engine)
-    logger.info("✓ Database tables verified/created successfully")
+    # Test database connection
+    with engine.connect() as connection:
+        connection.execute("SELECT 1")
+    logger.info("✓ Database connection successful")
 except Exception as e:
-    logger.warning(f"⚠ Could not create tables at startup: {e}")
-    logger.warning("Please ensure the database exists and run create_tables.py")
+    logger.error(f"❌ Database connection failed: {e}")
+    # Don't fail startup - let individual requests handle DB errors
 
 app = FastAPI(
     title=settings.PROJECT_NAME,

@@ -3,10 +3,14 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from app.core.config import settings
 
+# Configure engine with production-optimized settings
 engine = create_engine(
     settings.DATABASE_URL,
     pool_pre_ping=True,
-    echo=True  # Set to False in production
+    pool_recycle=300,  # Recycle connections every 5 minutes
+    pool_size=5,
+    max_overflow=0,
+    echo=False  # Disable SQL logging in production
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
