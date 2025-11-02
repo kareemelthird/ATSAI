@@ -1,10 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { Users as UsersIcon, Plus, Edit, Trash2, Search, Filter, X, Key } from 'lucide-react';
-import axios from 'axios';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-const API_URL = `${API_BASE_URL}/api/v1`;
+import { api } from '../../lib/api';
 
 interface User {
   id: string;
@@ -78,7 +75,7 @@ export default function AdminUsers() {
       if (roleFilter) params.append('role', roleFilter);
       if (statusFilter) params.append('status', statusFilter);
       
-      const response = await axios.get(`${API_URL}/users/?${params}`);
+      const response = await api.get(`/users/?${params}`);
       setUsers(response.data);
       setError('');
     } catch (err: any) {
@@ -91,7 +88,7 @@ export default function AdminUsers() {
 
   const handleCreateUser = async () => {
     try {
-      await axios.post(`${API_URL}/users/`, formData);
+      await api.post('/users/', formData);
       setShowCreateModal(false);
       resetForm();
       fetchUsers();
@@ -113,7 +110,7 @@ export default function AdminUsers() {
         status: formData.status
       };
       
-      await axios.put(`${API_URL}/users/${selectedUser.id}`, updateData);
+      await api.put(`/users/${selectedUser.id}`, updateData);
       setShowEditModal(false);
       resetForm();
       fetchUsers();
@@ -126,7 +123,7 @@ export default function AdminUsers() {
     if (!confirm('Are you sure you want to delete this user?')) return;
     
     try {
-      await axios.delete(`${API_URL}/users/${userId}`);
+      await api.delete(`/users/${userId}`);
       fetchUsers();
     } catch (err: any) {
       setError(getErrorMessage(err, 'Failed to delete user'));
@@ -135,7 +132,7 @@ export default function AdminUsers() {
 
   const handleChangeRole = async (userId: string, newRole: string) => {
     try {
-      await axios.put(`${API_URL}/users/${userId}/role`, { role: newRole });
+      await api.put(`/users/${userId}/role`, { role: newRole });
       fetchUsers();
     } catch (err: any) {
       setError(getErrorMessage(err, 'Failed to change role'));
@@ -164,7 +161,7 @@ export default function AdminUsers() {
     }
 
     try {
-      await axios.put(`${API_URL}/users/${resetPasswordUserId}/reset-password`, null, {
+      await api.put(`/users/${resetPasswordUserId}/reset-password`, null, {
         params: { new_password: newPassword }
       });
       
