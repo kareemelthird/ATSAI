@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import HealthCheck from '../components/HealthCheck';
 import axios from 'axios';
 
 // Use the same API configuration as the rest of the app
@@ -180,6 +181,9 @@ export default function Login() {
             {projectInfo.subtitle && ` - ${projectInfo.subtitle}`}
           </p>
         </div>
+
+        {/* System Health Check */}
+        <HealthCheck />
 
         {/* Error Message */}
         {error && (
