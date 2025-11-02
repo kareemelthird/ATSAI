@@ -1,6 +1,6 @@
 import { Settings as SettingsIcon, Save, Check, X, Loader, AlertCircle, TestTube, RefreshCw, Power } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { api } from '../../services/api';
+import { api } from '../../lib/api';
 
 interface Setting {
   category: string;
