@@ -99,7 +99,7 @@ async def log_audit_action(db: Session, user: User, action: str, description: st
         id=uuid.uuid4(),
         user_id=user.id,
         username=user.username,
-        user_role=user.role.value,
+        user_role=user.role,  # role is now a string, not enum
         action=action,
         resource_type="User",
         resource_id=str(user.id),
@@ -140,7 +140,7 @@ async def login(
         # Lock account after 5 failed attempts
         if user.failed_login_attempts >= 5:
             user.locked_until = datetime.utcnow() + timedelta(minutes=30)
-            user.status = UserStatus.SUSPENDED
+            user.status = "suspended"  # Use string instead of enum
             db.commit()
             
             raise HTTPException(
@@ -155,10 +155,10 @@ async def login(
         )
     
     # Check account status
-    if user.status != UserStatus.ACTIVE:
+    if user.status != "active":  # Use string instead of enum
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Account is {user.status.value}. Please contact administrator."
+            detail=f"Account is {user.status}. Please contact administrator."  # Remove .value
         )
     
     # Check if account is locked
@@ -177,8 +177,8 @@ async def login(
     user.last_active = datetime.utcnow()
     
     # Unlock if was suspended due to failed attempts
-    if user.status == UserStatus.SUSPENDED:
-        user.status = UserStatus.ACTIVE
+    if user.status == "suspended":  # Use string instead of enum
+        user.status = "active"      # Use string instead of enum
     
     db.commit()
     
@@ -249,8 +249,8 @@ async def register(
         first_name=user_data.first_name,
         last_name=user_data.last_name,
         phone=user_data.phone,
-        role=UserRole.VIEWER,  # Default role
-        status=UserStatus.ACTIVE,
+        role="viewer",      # Default role as string
+        status="active",    # Status as string
         is_email_verified=False,  # Would need email verification flow
         mfa_enabled=False,
         login_count=0,
@@ -312,7 +312,7 @@ async def refresh_token(
         # Get user
         user = db.query(User).filter(User.id == uuid.UUID(user_id)).first()
         
-        if not user or user.status != UserStatus.ACTIVE:
+        if not user or user.status != "active":  # Use string instead of enum
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User not found or inactive"

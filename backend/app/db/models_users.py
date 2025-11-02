@@ -45,9 +45,9 @@ class User(Base):
     last_name = Column(String(100))
     phone = Column(String(50))
     
-    # Role and Status
-    role = Column(SQLEnum(UserRole), nullable=False, default=UserRole.VIEWER)
-    status = Column(SQLEnum(UserStatus), nullable=False, default=UserStatus.PENDING)
+    # Role and Status (using String to match database constraints)
+    role = Column(String(50), nullable=False, default="viewer")
+    status = Column(String(50), nullable=False, default="pending")
     
     # Profile
     avatar_url = Column(String(500))
