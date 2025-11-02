@@ -29,6 +29,7 @@ export default function AdminSettings() {
   const [debugMode, setDebugMode] = useState(false);
 
   useEffect(() => {
+    console.log('🎯 useEffect TRIGGERED - About to call fetchSettings');
     fetchSettings();
   }, []);
 
@@ -41,7 +42,11 @@ export default function AdminSettings() {
       const token = localStorage.getItem('access_token');
       console.log('🔑 Using token:', token ? token.substring(0, 20) + '...' : 'MISSING');
       
-      const directResponse = await fetch('/api/v1/settings/', {
+      const API_BASE = import.meta.env.PROD 
+        ? 'https://atsai-jade.vercel.app' 
+        : 'http://localhost:8000';
+      
+      const directResponse = await fetch(`${API_BASE}/api/v1/settings/`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -92,7 +97,11 @@ export default function AdminSettings() {
       localStorage.removeItem('refresh_token');
       
       // Re-login automatically
-      const loginResponse = await fetch('/api/v1/auth/login', {
+      const API_BASE = import.meta.env.PROD 
+        ? 'https://atsai-jade.vercel.app' 
+        : 'http://localhost:8000';
+      
+      const loginResponse = await fetch(`${API_BASE}/api/v1/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -130,6 +139,7 @@ export default function AdminSettings() {
   };
 
   const fetchSettings = async () => {
+    console.log('🚀 fetchSettings() CALLED - START');
     try {
       setLoading(true);
       setError('');
@@ -169,6 +179,7 @@ export default function AdminSettings() {
       }
     } finally {
       setLoading(false);
+      console.log('🏁 fetchSettings() COMPLETED');
     }
   };
 
