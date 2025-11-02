@@ -52,7 +52,12 @@ export default function AdminSettings() {
       console.error('❌ Error fetching settings:', err);
       console.error('Response status:', err.response?.status);
       console.error('Response data:', err.response?.data);
-      setError(err.response?.data?.detail || 'Failed to fetch settings');
+      
+      if (err.response?.status === 401) {
+        setError('Authentication expired. Please log out and log back in.');
+      } else {
+        setError(err.response?.data?.detail || 'Failed to fetch settings');
+      }
     } finally {
       setLoading(false);
     }
