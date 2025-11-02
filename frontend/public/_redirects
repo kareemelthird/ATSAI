@@ -1,0 +1,2 @@
+/api/* /backend/vercel_app.py 200
+/* /frontend/dist/index.html 200
