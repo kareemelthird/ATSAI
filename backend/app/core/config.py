@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     
     # AI Provider Configuration
     AI_PROVIDER: str = os.getenv("AI_PROVIDER", "groq")  # "openrouter", "deepseek", or "groq"
-    USE_MOCK_AI: bool = os.getenv("USE_MOCK_AI", "false").lower() == "true"
+    USE_MOCK_AI: bool = True  # Temporarily force mock AI to bypass API failures
     
     # Groq AI (Free, Fast, No Credit Required)
     GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
