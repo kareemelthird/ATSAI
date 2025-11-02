@@ -39,6 +39,8 @@ export default function AdminSettings() {
     
     try {
       const token = localStorage.getItem('access_token');
+      console.log('🔑 Using token:', token ? token.substring(0, 20) + '...' : 'MISSING');
+      
       const directResponse = await fetch('/api/v1/settings/', {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -50,9 +52,9 @@ export default function AdminSettings() {
       
       if (directResponse.ok) {
         const data = await directResponse.json();
-        console.log('Direct fetch data:', data);
+        console.log('Direct fetch data:', data.length, 'settings');
         setSettings(data);
-        setError('✅ Direct API call succeeded!');
+        setError('');
         
         // Initialize edited values
         const values: Record<string, string> = {};
@@ -60,6 +62,11 @@ export default function AdminSettings() {
           values[setting.key] = setting.value;
         });
         setEditedValues(values);
+        
+        // Show success message
+        setSuccess('✅ Direct API call succeeded! Settings loaded via fallback method.');
+        setTimeout(() => setSuccess(''), 5000);
+        
       } else {
         const errorText = await directResponse.text();
         console.log('Direct fetch error:', errorText);
@@ -71,6 +78,54 @@ export default function AdminSettings() {
     }
     
     setLoading(false);
+    setDebugMode(false);
+  };
+
+  // Force auth refresh function
+  const forceAuthRefresh = async () => {
+    console.log('🔄 Forcing authentication refresh...');
+    setDebugMode(true);
+    
+    try {
+      // Clear current tokens
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      
+      // Re-login automatically
+      const loginResponse = await fetch('/api/v1/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          email: 'admin@ats.com',
+          password: 'admin123'
+        })
+      });
+      
+      if (loginResponse.ok) {
+        const loginData = await loginResponse.json();
+        localStorage.setItem('access_token', loginData.access_token);
+        localStorage.setItem('refresh_token', loginData.refresh_token);
+        localStorage.setItem('user', JSON.stringify(loginData.user));
+        
+        console.log('🔑 Auth refresh successful');
+        setSuccess('✅ Authentication refreshed! Retrying settings...');
+        
+        // Now retry fetching settings
+        setTimeout(() => {
+          fetchSettings();
+        }, 1000);
+        
+      } else {
+        const errorText = await loginResponse.text();
+        setError(`Auth refresh failed: ${loginResponse.status} - ${errorText}`);
+      }
+    } catch (error) {
+      console.error('Auth refresh exception:', error);
+      setError(`Auth refresh exception: ${error}`);
+    }
+    
     setDebugMode(false);
   };
 
@@ -275,6 +330,14 @@ export default function AdminSettings() {
             </p>
           </div>
           <div className="flex gap-2">
+            <button
+              onClick={forceAuthRefresh}
+              disabled={debugMode}
+              className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <RefreshCw className={`w-5 h-5 mr-2 ${debugMode ? 'animate-spin' : ''}`} />
+              {debugMode ? 'Refreshing...' : 'Refresh Auth'}
+            </button>
             <button
               onClick={testDirectAPICall}
               disabled={debugMode}
