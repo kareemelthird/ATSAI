@@ -80,3 +80,12 @@ htmlcov/
 *.pid
 *.seed
 *.pid.lock
+
+# Vercel
+.vercel
+.vercel/
+*.vercel
+
+# Production environment files
+.env.production
+*.production

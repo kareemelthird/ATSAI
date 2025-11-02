@@ -226,9 +226,9 @@ def get_all_settings_definitions() -> List[Dict[str, Any]]:
         # AI Instruction Settings
         {
             "category": "ai_provider",
-            "key": "resume_analysis_instructions",
-            "label": "Resume Analysis Instructions",
-            "description": "System instructions for AI resume analysis and extraction",
+            "key": "ai_resume_analysis_instructions",
+            "label": "AI Resume Analysis Instructions",
+            "description": "AI instructions for resume analysis and evaluation",
             "data_type": "text",
             "requires_restart": False
         },

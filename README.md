@@ -457,6 +457,32 @@ npm run test
 npm run test:e2e
 ```
 
+---
+
+## 🚀 Deployment to Vercel
+
+### Quick Deploy Button
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/yourusername/ats-ai)
+
+### Manual Deployment
+1. **Prepare Database**: Set up PostgreSQL on Supabase/Railway/Neon
+2. **Fork Repository**: Fork this repo to your GitHub
+3. **Connect Vercel**: Import project in Vercel dashboard
+4. **Configure Environment**: Add required environment variables
+5. **Deploy**: Vercel will automatically build and deploy
+
+### Required Environment Variables for Vercel
+```env
+DATABASE_URL=postgresql://user:pass@host:port/db
+SECRET_KEY=your-secret-key
+USE_MOCK_AI=false
+AI_MODEL=llama-3.3-70b-versatile
+```
+
+📋 **Complete deployment guide**: See [DEPLOYMENT_CHECKLIST.md](./DEPLOYMENT_CHECKLIST.md)
+
+---
+
 ## 📄 License
 
 MIT License - See LICENSE file for details.

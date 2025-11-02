@@ -9,16 +9,21 @@ import re
 from datetime import datetime
 
 
-async def call_ai_api(prompt: str, system_message: str = None, user_api_key: str = None) -> str:
+async def call_ai_api(prompt: str, system_message: str = None, user_api_key: str = None, db: Session = None) -> str:
     """
     Call AI API (OpenRouter or DeepSeek) for completions
     Args:
         user_api_key: Optional user's personal API key
+        db: Database session to get system API key from database
     """
     # If USE_MOCK_AI is enabled, skip API and use mock responses
     if settings.USE_MOCK_AI:
         print("🤖 Using mock AI response (USE_MOCK_AI=true)")
-        if "resume" in prompt.lower() or "analyze" in prompt.lower():
+        
+        # Check if this is a resume analysis request (has structured JSON format request)
+        if ("```json" in prompt.lower() or 
+            ("resume" in prompt.lower() and "extract" in prompt.lower()) or
+            ("analyze the resume data" in prompt.lower())):
             return """```json
 {
   "skills": [
@@ -56,35 +61,98 @@ async def call_ai_api(prompt: str, system_message: str = None, user_api_key: str
 }
 ```"""
         else:
-            # For chat queries, extract candidate info from the prompt
-            if "Candidate:" in prompt:
-                # Parse candidate names from the prompt
+            # For chat queries, provide conversational responses
+            
+            # Extract the original user query from the complex prompt
+            original_query = prompt
+            if "Current Question:" in prompt:
+                # Extract just the user's question from the complex prompt
+                lines = prompt.split('\n')
+                for line in lines:
+                    if line.strip().startswith("Current Question:"):
+                        original_query = line.replace("Current Question:", "").strip()
+                        break
+            
+            # Detect language to provide appropriate response
+            def detect_language(text: str) -> str:
+                arabic_chars = sum(1 for char in text if '\u0600' <= char <= '\u06FF')
+                english_chars = sum(1 for char in text if char.isascii() and char.isalpha())
+                total_chars = arabic_chars + english_chars
+                
+                if total_chars == 0:
+                    return "english"
+                
+                arabic_ratio = arabic_chars / total_chars
+                return "arabic" if arabic_ratio > 0.3 else "english"
+            
+            user_language = detect_language(original_query)
+            
+            # Handle common questions about AI's role
+            role_questions_arabic = ["ماهي وظيفتك", "من أنت", "ما دورك", "اخبرني عن نفسك"]
+            role_questions_english = ["what is your job", "who are you", "what do you do", "tell me about yourself"]
+            
+            is_role_question = any(q in original_query.lower() for q in role_questions_arabic + role_questions_english)
+            
+            if is_role_question:
+                if user_language == "arabic":
+                    return "أنا مساعد ذكي متخصص في الموارد البشرية أساعدك في العثور على أفضل المرشحين وتحليل ملفاتهم الشخصية. يمكنني مساعدتك في:\n\n• البحث عن المرشحين المناسبين للوظائف\n• تحليل وتقييم السير الذاتية\n• مقارنة المرشحين وترتيبهم حسب الأولوية\n• الإجابة على استفساراتك حول عملية التوظيف\n\nكيف يمكنني مساعدتك اليوم؟"
+                else:
+                    return "I'm an AI HR assistant helping you find the best candidates and analyze their profiles. I can help you with:\n\n• Finding suitable candidates for job positions\n• Analyzing and evaluating resumes\n• Comparing candidates and ranking them by priority\n• Answering your recruitment questions\n\nHow can I help you today?"
+            
+            # For other chat queries, provide helpful responses
+            if "CANDIDATE PROFILES:" in prompt and not prompt.split("CANDIDATE PROFILES:")[1].strip().startswith("IMPORTANT"):
+                # Parse candidate names from the actual candidate data section
                 import re
-                candidates = re.findall(r'Candidate: ([^\n]+)', prompt)
+                candidate_section = prompt.split("CANDIDATE PROFILES:")[1].split("IMPORTANT:")[0]
+                candidates = re.findall(r'Candidate: ([^\n]+)', candidate_section)
                 if candidates:
-                    response = f"I found {len(candidates)} candidate(s) in the database:\n\n"
-                    for i, name in enumerate(candidates[:3], 1):
-                        response += f"{i}. **{name}**: "
-                        if "kareem" in name.lower() and "hassan" in name.lower():
-                            response += "Experienced developer with skills in Python, FastAPI, React, JavaScript, PostgreSQL, and Communication. Works at TechCorp Solutions as a Senior Software Developer.\n\n"
-                        else:
-                            response += "Full-stack developer with strong technical skills and professional experience.\n\n"
-                    response += "\n*(Note: This is a mock AI response. For real AI insights, add credit to your DeepSeek account or use a different AI provider)*"
+                    if user_language == "arabic":
+                        response = f"وجدت {len(candidates)} مرشح في قاعدة البيانات:\n\n"
+                        for i, name in enumerate(candidates[:3], 1):
+                            response += f"{i}. **{name}**: "
+                            if "kareem" in name.lower() and "hassan" in name.lower():
+                                response += "مطور خبير بمهارات في Python وFastAPI وReact وJavaScript وPostgreSQL والتواصل. يعمل في TechCorp Solutions كمطور أول.\n\n"
+                            else:
+                                response += "مطور متكامل بمهارات تقنية قوية وخبرة مهنية.\n\n"
+                        response += "\nهل تريد مني تقييم أي من هؤلاء المرشحين لوظيفة معينة؟"
+                    else:
+                        response = f"I found {len(candidates)} candidate(s) in the database:\n\n"
+                        for i, name in enumerate(candidates[:3], 1):
+                            response += f"{i}. **{name}**: "
+                            if "kareem" in name.lower() and "hassan" in name.lower():
+                                response += "Experienced developer with skills in Python, FastAPI, React, JavaScript, PostgreSQL, and Communication. Works at TechCorp Solutions as a Senior Software Developer.\n\n"
+                            else:
+                                response += "Full-stack developer with strong technical skills and professional experience.\n\n"
+                        response += "\nWould you like me to evaluate any of these candidates for a specific position?"
                     return response
-            return "Based on the database, I found several candidates. However, I need a real AI connection to provide detailed analysis. Please add credit to your DeepSeek account or configure a different AI provider."
+            
+            # Default conversational response
+            if user_language == "arabic":
+                return "أهلاً بك! أنا هنا لمساعدتك في عملية التوظيف. يمكنني البحث عن المرشحين المناسبين وتحليل ملفاتهم الشخصية. ما هي الوظيفة أو المهارات التي تبحث عنها؟"
+            else:
+                return "Hello! I'm here to help you with recruitment. I can search for suitable candidates and analyze their profiles. What position or skills are you looking for?"
     
     # Use user's personal API key if provided
     if user_api_key:
         api_url = settings.GROQ_API_URL
         api_key = user_api_key
         print(f"🔑 Using user's personal Groq API key")
-    # Determine which API to use
+    # Get system API key from database if no user key provided
+    elif db:
+        system_api_key = get_ai_setting(db, "system_groq_api_key")
+        if system_api_key and system_api_key != "your_groq_api_key_here":
+            api_url = settings.GROQ_API_URL
+            api_key = system_api_key
+            print(f"🔑 Using system Groq API key from database")
+        else:
+            raise ValueError("No valid Groq API key found in database")
+    # Fallback to environment variables
     elif settings.AI_PROVIDER == "groq":
         api_url = settings.GROQ_API_URL
         api_key = settings.GROQ_API_KEY
-        if not api_key:
-            raise ValueError("GROQ_API_KEY not configured")
-        print(f"🚀 Using Groq API with model: {settings.AI_MODEL}")
+        if not api_key or api_key == "your_groq_api_key_here":
+            raise ValueError("GROQ_API_KEY not configured in environment")
+        print(f"🚀 Using Groq API from environment with model: {settings.AI_MODEL}")
     elif settings.AI_PROVIDER == "deepseek":
         api_url = settings.DEEPSEEK_API_URL
         api_key = settings.DEEPSEEK_API_KEY
@@ -297,26 +365,21 @@ async def analyze_resume(text: str, candidate_id: str, db: Session, current_user
     # Get system instructions from database (customizable by admin)
     custom_instructions = get_ai_setting(
         db, 
-        "resume_analysis_instructions",
-        default_value="""You are an expert HR assistant and resume analyst. 
-Extract comprehensive information from the resume text and return it as detailed JSON.
+        "ai_resume_analysis_instructions",
+        default_value="""You are an expert HR assistant that analyzes resumes.
 
-CRITICAL EXTRACTION RULES:
-1. Extract COMPLETE names (first, middle, last) - don't truncate
-2. Extract PRIMARY email address ONLY (if multiple emails exist, use the first/main one)
-3. Extract phone numbers with country codes if present
-4. For work experience: Extract ALL positions, with accurate dates and DETAILED job responsibilities
-4. For skills: Categorize as technical, soft, or domain-specific
-5. For education: Include ALL degrees, certifications, and courses
-6. Extract projects with technologies used
-7. Extract languages with proficiency levels if mentioned
-8. Determine career_level based on job titles and experience: Entry (0-2 years), Mid (3-5 years), Senior (6-10 years), Lead (10+ years), Manager/Director/Executive (management roles)
-9. Calculate total years_of_experience from all work history
+Extract information accurately and comprehensively:
+- Personal details (name, email, phone, location, links)
+- Professional summary highlighting key achievements
+- Calculate years of experience from work history
+- Skills categorized by type (technical, soft, domain)
+- Complete work experience with dates, companies, roles
+- Education with institutions, degrees, dates
+- Certifications with names, organizations, dates
+- Languages with proficiency levels
 
-WORK EXPERIENCE EXTRACTION - CRITICAL:
-- Extract DETAILED job responsibilities, not just brief summaries
-- Include specific technologies, tools, frameworks mentioned
-- Extract quantifiable achievements (numbers, percentages, metrics)
+Guidelines:
+- Be thorough but accurate
 - Include team leadership, project management details
 - Extract daily tasks, main responsibilities, and key accomplishments
 - Be comprehensive - capture ALL relevant information about each role"""
@@ -428,7 +491,7 @@ Return ONLY valid JSON, no additional text or markdown formatting."""
 Return the analysis as JSON."""
     
     try:
-        response = await call_ai_api(prompt, system_message, user_api_key)
+        response = await call_ai_api(prompt, system_message, user_api_key, db)
         
         # Ensure response is a string
         if not isinstance(response, str):
@@ -790,34 +853,97 @@ async def chat_with_database(query: str, db: Session, current_user = None, conve
     if current_user and hasattr(current_user, 'use_personal_ai_key') and current_user.use_personal_ai_key:
         user_api_key = getattr(current_user, 'personal_groq_api_key', None)
     
-    # Smart candidate filtering based on query
+    # Detect if query is candidate/HR related or general chat
     query_lower = query.lower()
     
-    # Check if query mentions specific candidate names
-    all_candidates = db.query(models.Candidate).all()
-    relevant_candidates = []
+    # HR/Candidate related keywords
+    hr_keywords = [
+        'candidate', 'candidates', 'resume', 'cv', 'job', 'position', 'skill', 'experience', 
+        'developer', 'engineer', 'manager', 'hire', 'recruit', 'interview', 'apply', 'application',
+        'مرشح', 'مرشحين', 'سيرة', 'وظيفة', 'مهارة', 'خبرة', 'مطور', 'مهندس', 'توظيف', 'مقابلة'
+    ]
     
-    # If specific names are mentioned, filter to those candidates
+    # Check if any HR keywords are in the query or if specific names are mentioned
+    is_hr_related = any(keyword in query_lower for keyword in hr_keywords)
+    
+    # Also check if specific candidate names are mentioned
+    all_candidates = db.query(models.Candidate).all()
+    mentioned_candidates = []
+    
     for candidate in all_candidates:
         full_name = f"{candidate.first_name} {candidate.last_name}".lower()
         first_name = candidate.first_name.lower()
         last_name = candidate.last_name.lower()
         
-        # Check if candidate name is mentioned in query
         if (first_name in query_lower or 
             last_name in query_lower or 
             full_name in query_lower):
-            relevant_candidates.append(candidate)
+            mentioned_candidates.append(candidate)
+            is_hr_related = True
     
-    # If no specific names mentioned, or query asks for "all" or "list", include all candidates
-    if not relevant_candidates or any(word in query_lower for word in ['all', 'list', 'show', 'كل', 'جميع']):
-        candidates = all_candidates
-    else:
-        # Use only the relevant candidates mentioned in the query
-        candidates = relevant_candidates
-    
-    # Debug logging
     print(f"🔍 Chat query: {query}")
+    print(f"🎯 HR-related query: {is_hr_related}")
+    
+    # If it's not HR-related, provide a simple conversational response
+    if not is_hr_related:
+        # Detect language preference from query
+        def detect_language(text: str) -> str:
+            arabic_chars = sum(1 for char in text if '\u0600' <= char <= '\u06FF')
+            english_chars = sum(1 for char in text if char.isascii() and char.isalpha())
+            total_chars = arabic_chars + english_chars
+            
+            if total_chars == 0:
+                return "english"
+            
+            arabic_ratio = arabic_chars / total_chars
+            return "arabic" if arabic_ratio > 0.3 else "english"
+        
+        user_language = detect_language(query)
+        print(f"🌐 Detected language: {user_language}")
+        
+        # Get language-specific AI instructions from database
+        if user_language == "arabic":
+            setting_key = "ai_instructions_arabic"
+            default_instructions = """أنت مساعد ذكي ودود. أجب على الأسئلة بطريقة طبيعية ومفيدة."""
+        else:
+            setting_key = "ai_instructions_english" 
+            default_instructions = """You are a friendly, helpful AI assistant. Answer questions naturally and helpfully. IMPORTANT: Always respond in English language only."""
+        
+        custom_instructions = get_ai_setting(db, setting_key, default_value=default_instructions)
+        
+        # Simple conversational prompt without candidate data
+        simple_prompt = f"""You are a helpful AI assistant. Answer this question naturally and conversationally:
+
+Question: {query}
+
+Instructions:
+- Be friendly and helpful
+- IMPORTANT: Respond ONLY in English language, no Chinese or other languages
+- Use clear, natural English language only
+- Answer directly and naturally
+- If it's a math question, solve it
+- If it's a greeting, respond warmly
+- Keep it conversational and human-like
+- {"أجب باللغة العربية" if user_language == "arabic" else "Respond in English"}"""
+        
+        try:
+            ai_response = await call_ai_api(simple_prompt, custom_instructions, user_api_key, db)
+            return {
+                "response": ai_response,
+                "candidates": [],
+                "jobs": []
+            }
+        except Exception as e:
+            fallback_response = "Hello! I'm here to help. How can I assist you today?" if user_language == "english" else "أهلاً! أنا هنا لمساعدتك. كيف يمكنني مساعدتك اليوم؟"
+            return {
+                "response": fallback_response,
+                "candidates": [],
+                "jobs": []
+            }
+    
+    # Continue with HR-related logic for candidate queries
+    candidates = mentioned_candidates if mentioned_candidates else all_candidates
+    
     print(f"📊 Found {len(candidates)} relevant candidates:")
     for c in candidates:
         print(f"   - {c.first_name} {c.last_name}")
@@ -968,35 +1094,40 @@ Description: {job.description[:200] if job.description else 'Not specified'}...
     
     user_language = detect_language(query)
     
-    # Get custom chat instructions from database
-    language_specific_instructions = {
-        "arabic": """أنت مساعد ذكي متخصص في الموارد البشرية تساعد المسؤولين عن التوظيف في العثور على أفضل المرشحين.
+    # Get language-specific AI instructions from database (customizable by admin)
+    if user_language == "arabic":
+        setting_key = "ai_instructions_arabic"
+        default_instructions = """أنت مساعد ذكي ودود متخصص في الموارد البشرية. اسمك "مساعد ATS الذكي".
 
-تعليمات مهمة:
-- أجب بوضوح وطبيعية باللغة العربية فقط، استناداً إلى بيانات المرشحين المقدمة
-- استخدم الأسماء والمعلومات الدقيقة من الملفات الشخصية أدناه
-- كن ودوداً ومفيداً
-- عند مقارنة المرشحين، قدم تفاصيل محددة مع نقاط القوة والضعف
-- قدم درجات تقييم واضحة (من 10) لكل مرشح
-- اربط مؤهلات كل مرشح بمتطلبات الوظيفة المحددة
-- اجعل إجاباتك مختصرة لكن غنية بالمعلومات""",
-        
-        "english": """You are a professional HR AI assistant helping recruiters find the best candidates.
+هدفك مساعدة المسؤولين عن التوظيف بطريقة طبيعية وودودة.
 
-IMPORTANT INSTRUCTIONS:
-- Give direct, natural, conversational answers in English ONLY based on the candidate data provided
-- ALWAYS use the exact names and information from the profiles below
-- Be friendly and helpful but professional
-- When comparing candidates, provide specific details with strengths and weaknesses
-- Include clear scoring (out of 10) for each candidate
-- Match each candidate's qualifications to specific job requirements
-- Keep answers concise but informative"""
-    }
+تعليمات المحادثة:
+- أجب بطريقة طبيعية ودودة كما لو كنت تتحدث مع صديق مهني
+- إذا سُئلت عن وظيفتك، أجب: "أنا مساعد ذكي متخصص في الموارد البشرية أساعدك في العثور على أفضل المرشحين وتحليل ملفاتهم الشخصية"
+- إذا لم تكن هناك وظائف محددة، اطلب توضيحاً بلطف عن نوع الوظيفة المطلوبة
+- استخدم الأسماء والمعلومات الدقيقة من قاعدة البيانات فقط
+- لا تخترع معلومات غير موجودة
+- إذا لم تجد مرشحين مناسبين، اعتذر بلطف واطلب توضيح المتطلبات
+- كن مختصراً ومفيداً في نفس الوقت"""
+    else:
+        setting_key = "ai_instructions_english"
+        default_instructions = """You are a friendly, intelligent HR assistant. Your name is "ATS Smart Assistant".
+
+Your goal is to help recruiters in a natural, friendly way.
+
+Conversation Guidelines:
+- Respond naturally and friendly as if talking to a professional colleague
+- If asked about your role, say: "I'm an AI HR assistant helping you find the best candidates and analyze their profiles"
+- If no specific jobs are mentioned, politely ask for clarification about the desired position
+- Only use exact names and information from the database
+- Never invent information that doesn't exist
+- If no suitable candidates are found, politely apologize and ask for clarification of requirements
+- Be concise but helpful"""
     
     custom_instructions = get_ai_setting(
         db,
-        "chat_system_instructions",
-        default_value=language_specific_instructions.get(user_language, language_specific_instructions["english"])
+        setting_key,
+        default_value=default_instructions
     )
     
     system_message = custom_instructions + """
@@ -1076,7 +1207,7 @@ IMPORTANT:
 
     # Call AI to generate response
     try:
-        ai_response = await call_ai_api(user_prompt, system_message, user_api_key)
+        ai_response = await call_ai_api(user_prompt, system_message, user_api_key, db)
         
         # Clean up response if it contains JSON markers or code blocks
         if "```" in ai_response:

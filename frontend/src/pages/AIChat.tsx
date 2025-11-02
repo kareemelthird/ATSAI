@@ -152,11 +152,15 @@ const AIChat = () => {
       const errorMessage = error.response?.data?.detail || error.message || 'An error occurred'
       const status = error.response?.status
       
+      console.log('🔥 AI Chat Error:', { status, errorMessage, error: error.response?.data })
+      
       let userFriendlyMessage = ''
       if (status === 429) {
         userFriendlyMessage = 'You have reached your daily limit for AI messages. Please try again tomorrow or add your personal Groq API key for unlimited access.'
       } else if (status === 403) {
         userFriendlyMessage = 'Access denied. You may need to add your personal Groq API key in Profile settings.'
+      } else if (status === 401) {
+        userFriendlyMessage = 'You need to log in to use the AI chat. Please log in and try again.'
       } else {
         userFriendlyMessage = 'Please try again or contact support if the problem persists.'
       }
@@ -168,6 +172,8 @@ const AIChat = () => {
           role: 'assistant', 
           content: `❌ Error: ${errorMessage}\n\n${userFriendlyMessage}${
             status === 429 || status === 403 ? '\n\n👉 Go to Profile → AI Settings to add your free Groq API key' : ''
+          }${
+            status === 401 ? '\n\n👉 Please log in using admin@ats.com / Admin@123' : ''
           }`
         },
       ])

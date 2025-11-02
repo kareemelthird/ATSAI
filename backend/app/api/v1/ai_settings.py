@@ -175,7 +175,7 @@ async def initialize_default_settings(
     
     default_settings = [
         {
-            "setting_key": "resume_analysis_instructions",
+            "setting_key": "ai_resume_analysis_instructions",
             "setting_value": """You are an expert HR assistant and resume analyst. 
 Extract comprehensive information from the resume text and return it as detailed JSON.
 
