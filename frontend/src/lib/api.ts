@@ -1,10 +1,23 @@
 import axios from 'axios'
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+// In production, use relative URLs; in development, use localhost
+const getAPIBaseURL = () => {
+  // Check if we're in production (Vercel deployment)
+  if (import.meta.env.PROD) {
+    // Use relative URL in production - this will use the same domain
+    return window.location.origin
+  }
+  
+  // In development, use the VITE_API_URL or fallback to localhost
+  return import.meta.env.VITE_API_URL || 'http://localhost:8000'
+}
+
+const API_BASE_URL = getAPIBaseURL()
 
 // Debug: Log the API URL being used
 console.log('🔧 API Base URL:', API_BASE_URL)
 console.log('🔧 Environment:', import.meta.env.MODE)
+console.log('🔧 Production mode:', import.meta.env.PROD)
 console.log('🔧 VITE_API_URL from env:', import.meta.env.VITE_API_URL)
 
 export const api = axios.create({
