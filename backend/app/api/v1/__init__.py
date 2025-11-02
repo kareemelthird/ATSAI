@@ -1,11 +1,12 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import candidates, resumes, jobs, applications, ai_chat, auth, users, settings, profile, admin_settings, health, test_upload
+from app.api.v1.endpoints import candidates, resumes, jobs, applications, ai_chat, auth, users, settings, profile, admin_settings, health, test_upload, status
 from app.api.v1 import ai_settings
 
 router = APIRouter()
 
 # System Health
 router.include_router(health.router, tags=["system"])
+router.include_router(status.router, prefix="/status", tags=["system"])
 
 # Authentication & User Management
 router.include_router(auth.router, prefix="/auth", tags=["authentication"])

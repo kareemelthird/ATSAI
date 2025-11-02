@@ -49,7 +49,16 @@ async def upload_resume_auto(
             buffer.write(content)
         
         # Parse PDF to extract text
-        extracted_text = parse_pdf(str(temp_file_path))
+        try:
+            extracted_text = parse_pdf(str(temp_file_path))
+            if not extracted_text or extracted_text.strip() == "":
+                raise Exception("PDF appears to be empty or contains no extractable text")
+        except Exception as pdf_error:
+            print(f"PDF parsing failed: {pdf_error}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Failed to parse PDF file: {str(pdf_error)}. Please ensure the PDF is not corrupted and contains text."
+            )
         
         # Use AI to analyze resume and extract structured data
         # This will create the candidate and all related records automatically
