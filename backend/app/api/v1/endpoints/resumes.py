@@ -26,21 +26,43 @@ async def upload_resume_auto(
 ):
     """Upload a resume and automatically create/update candidate with AI-extracted data"""
     
-    # Validate file extension
-    file_ext = os.path.splitext(file.filename)[1].lower()
-    if file_ext not in settings.ALLOWED_EXTENSIONS:
+    print(f"🚀 Resume upload started for user: {current_user.email}")
+    print(f"   File: {file.filename}")
+    print(f"   Content-Type: {file.content_type}")
+    
+    try:
+        # Validate file extension
+        file_ext = os.path.splitext(file.filename)[1].lower()
+        print(f"   Extension: {file_ext}")
+        
+        if file_ext not in settings.ALLOWED_EXTENSIONS:
+            print(f"   ❌ Invalid extension: {file_ext}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"File type {file_ext} not allowed. Allowed: {', '.join(settings.ALLOWED_EXTENSIONS)}"
+            )
+        
+        print(f"   ✅ Extension validated")
+        
+        # Create upload directory if it doesn't exist
+        upload_dir = Path(settings.UPLOAD_DIR)
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        print(f"   ✅ Upload directory ready: {upload_dir}")
+        
+        # Save file temporarily with unique name
+        temp_filename = f"temp_{datetime.utcnow().timestamp()}_{file.filename}"
+        temp_file_path = upload_dir / temp_filename
+        
+        print(f"   📝 Preparing temp file: {temp_file_path}")
+        
+    except Exception as init_error:
+        print(f"❌ Initialization error: {init_error}")
+        import traceback
+        print(f"Full traceback: {traceback.format_exc()}")
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"File type {file_ext} not allowed. Allowed: {', '.join(settings.ALLOWED_EXTENSIONS)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Initialization failed: {str(init_error)}"
         )
-    
-    # Create upload directory if it doesn't exist
-    upload_dir = Path(settings.UPLOAD_DIR)
-    upload_dir.mkdir(parents=True, exist_ok=True)
-    
-    # Save file temporarily with unique name
-    temp_filename = f"temp_{datetime.utcnow().timestamp()}_{file.filename}"
-    temp_file_path = upload_dir / temp_filename
     
     try:
         # Read and save file
