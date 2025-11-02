@@ -3,14 +3,20 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from app.core.config import settings
 
-# Configure engine with production-optimized settings
+# Configure engine with production-optimized settings and SSL for Supabase
+connect_args = {}
+if "supabase.co" in settings.DATABASE_URL:
+    # Add SSL configuration for Supabase
+    connect_args = {"sslmode": "require"}
+
 engine = create_engine(
     settings.DATABASE_URL,
     pool_pre_ping=True,
     pool_recycle=300,  # Recycle connections every 5 minutes
     pool_size=5,
     max_overflow=0,
-    echo=False  # Disable SQL logging in production
+    echo=False,  # Disable SQL logging in production
+    connect_args=connect_args
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
