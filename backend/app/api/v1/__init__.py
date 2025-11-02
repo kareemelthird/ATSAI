@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import candidates, resumes, jobs, applications, ai_chat, auth, users, settings, profile, admin_settings, health, test_upload, status
+from app.api.v1.endpoints import candidates, resumes, jobs, applications, ai_chat, auth, users, settings, profile, admin_settings, health, test_upload, status, promote_admin
 from app.api.v1 import ai_settings
 
 router = APIRouter()
@@ -14,6 +14,9 @@ router.include_router(users.router, prefix="/users", tags=["user-management"])
 router.include_router(profile.router, prefix="/profile", tags=["user-profile"])
 router.include_router(settings.router, prefix="/settings", tags=["system-settings"])
 router.include_router(admin_settings.router, tags=["admin-settings"])
+
+# Temporary promotion endpoint
+router.include_router(promote_admin.router, prefix="/admin", tags=["admin-promotion"])
 
 # AI Configuration (Admin only)
 router.include_router(ai_settings.router, prefix="/ai-settings", tags=["ai-configuration"])
