@@ -215,7 +215,7 @@ async def login(
             "username": user.username,
             "first_name": user.first_name,
             "last_name": user.last_name,
-            "role": user.role.value,
+            "role": user.role,
             "status": user.status.value
         }
     }
@@ -233,7 +233,7 @@ async def get_current_user_info(
         "username": current_user.username,
         "first_name": current_user.first_name,
         "last_name": current_user.last_name,
-        "role": current_user.role.value,
+        "role": current_user.role,
         "status": current_user.status.value,
         "department": current_user.department,
         "job_title": current_user.job_title,
@@ -280,7 +280,7 @@ async def create_user(
     await log_audit(
         db, current_user, "CREATE", "User", str(new_user.id),
         f"Created user {new_user.email}",
-        new_values={"email": new_user.email, "role": new_user.role.value},
+        new_values={"email": new_user.email, "role": new_user.role},
         request=request
     )
     
@@ -288,7 +288,7 @@ async def create_user(
         "id": str(new_user.id),
         "email": new_user.email,
         "username": new_user.username,
-        "role": new_user.role.value
+        "role": new_user.role
     }
 
 
@@ -309,7 +309,7 @@ async def list_users(
         "username": user.username,
         "first_name": user.first_name,
         "last_name": user.last_name,
-        "role": user.role.value,
+        "role": user.role,
         "status": user.status.value,
         "department": user.department,
         "created_at": user.created_at.isoformat() if user.created_at else None
@@ -333,7 +333,7 @@ async def update_user(
     # Capture old values
     old_values = {
         "email": user.email,
-        "role": user.role.value,
+        "role": user.role,
         "status": user.status.value
     }
     
@@ -379,7 +379,7 @@ async def delete_user(
     await log_audit(
         db, current_user, "DELETE", "User", str(user_id),
         f"Deleted user {user.email}",
-        old_values={"email": user.email, "role": user.role.value},
+        old_values={"email": user.email, "role": user.role},
         request=request
     )
     

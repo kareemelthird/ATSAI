@@ -9,7 +9,7 @@ from pydantic import BaseModel, EmailStr
 import uuid
 
 from app.db.database import get_db
-from app.db.models_users import User, UserRole, UserStatus, AuditLog
+from app.db.models_users import User, AuditLog
 from app.core.auth import (
     hash_password,
     get_current_user
@@ -26,7 +26,7 @@ class UserCreate(BaseModel):
     first_name: str
     last_name: str
     phone: Optional[str] = None
-    role: UserRole = UserRole.VIEWER
+    role: str = "viewer"
     department: Optional[str] = None
     job_title: Optional[str] = None
 
@@ -67,7 +67,7 @@ class ChangeRoleRequest(BaseModel):
 # Helper function to check admin access
 def require_admin(current_user: User) -> User:
     """Check if user is admin or super admin"""
-    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.ADMIN]:
+    if current_user.role not in ["super_admin", "admin"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required"
@@ -82,7 +82,7 @@ async def log_audit_action(db: Session, user: User, action: str, resource_id: st
         id=uuid.uuid4(),
         user_id=user.id,
         username=user.username,
-        user_role=user.role.value,
+        user_role=user.role,
         action=action,
         resource_type="User",
         resource_id=resource_id,
@@ -142,7 +142,7 @@ async def list_users(
             first_name=user.first_name,
             last_name=user.last_name,
             phone=user.phone,
-            role=user.role.value,
+            role=user.role,
             status=user.status.value,
             department=user.department,
             job_title=user.job_title,
@@ -199,7 +199,7 @@ async def create_user(
         last_name=user_data.last_name,
         phone=user_data.phone,
         role=user_data.role,
-        status=UserStatus.ACTIVE,
+        status="active",
         department=user_data.department,
         job_title=user_data.job_title,
         is_email_verified=False,
@@ -217,8 +217,8 @@ async def create_user(
     # Log audit
     await log_audit_action(
         db, current_user, "CREATE_USER", str(new_user.id),
-        f"Created user {new_user.email} with role {new_user.role.value}",
-        new_values={"email": new_user.email, "role": new_user.role.value},
+        f"Created user {new_user.email} with role {new_user.role}",
+        new_values={"email": new_user.email, "role": new_user.role},
         request=request
     )
     
@@ -229,7 +229,7 @@ async def create_user(
         first_name=new_user.first_name,
         last_name=new_user.last_name,
         phone=new_user.phone,
-        role=new_user.role.value,
+        role=new_user.role,
         status=new_user.status.value,
         department=new_user.department,
         job_title=new_user.job_title,
@@ -276,7 +276,7 @@ async def get_user(
         first_name=user.first_name,
         last_name=user.last_name,
         phone=user.phone,
-        role=user.role.value,
+        role=user.role,
         status=user.status.value,
         department=user.department,
         job_title=user.job_title,
@@ -316,7 +316,7 @@ async def update_user(
     
     # Check permissions
     is_own_profile = str(current_user.id) == user_id
-    is_admin = current_user.role in [UserRole.SUPER_ADMIN, UserRole.ADMIN]
+    is_admin = current_user.role in ["super_admin", "admin"]
     
     # Only admins can change role and status
     if (user_data.role or user_data.status) and not is_admin:
@@ -335,7 +335,7 @@ async def update_user(
     # Capture old values
     old_values = {
         "email": user.email,
-        "role": user.role.value,
+        "role": user.role,
         "status": user.status.value
     }
     
@@ -365,7 +365,7 @@ async def update_user(
         first_name=user.first_name,
         last_name=user.last_name,
         phone=user.phone,
-        role=user.role.value,
+        role=user.role,
         status=user.status.value,
         department=user.department,
         job_title=user.job_title,
@@ -414,7 +414,7 @@ async def delete_user(
         )
     
     # Deactivate instead of delete (soft delete)
-    user.status = UserStatus.INACTIVE
+    user.status = "inactive"
     user.updated_at = datetime.utcnow()
     db.commit()
     
@@ -462,8 +462,8 @@ async def change_user_role(
         )
     
     # Only Super Admin can create/modify Super Admins and Admins
-    if role_data.role in [UserRole.SUPER_ADMIN, UserRole.ADMIN]:
-        if current_user.role != UserRole.SUPER_ADMIN:
+    if role_data.role in ["super_admin", "admin"]:
+        if current_user.role != "super_admin":
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Only Super Admin can assign Admin roles"

@@ -9,7 +9,7 @@ from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
 from app.core.auth import get_current_user
 from app.db.database import get_db
-from app.db.models_users import User, UserRole, AuditLog, SystemSettings
+from app.db.models_users import User, AuditLog, SystemSettings
 from app.core.config import settings
 import os
 from pathlib import Path
@@ -54,7 +54,7 @@ class TestAIConnectionResponse(BaseModel):
 # Helper function to check admin access
 def require_admin(current_user: User = Depends(get_current_user)) -> User:
     """Verify current user is admin"""
-    if current_user.role not in [UserRole.ADMIN, UserRole.SUPER_ADMIN]:
+    if current_user.role not in ["admin", "super_admin"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required"
@@ -428,7 +428,7 @@ async def update_setting(
     audit_log = AuditLog(
         user_id=current_user.id,
         username=current_user.username,
-        user_role=current_user.role.value,
+        user_role=current_user.role,
         action="UPDATE",
         resource_type="SYSTEM_SETTING",
         resource_id=key,
@@ -596,7 +596,7 @@ async def restart_server(
     audit_log = AuditLog(
         user_id=current_user.id,
         username=current_user.username,
-        user_role=current_user.role.value,
+        user_role=current_user.role,
         action="RESTART",
         resource_type="SYSTEM",
         resource_id="server",

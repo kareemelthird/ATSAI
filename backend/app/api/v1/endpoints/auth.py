@@ -9,7 +9,7 @@ from pydantic import BaseModel, EmailStr
 import uuid
 
 from app.db.database import get_db
-from app.db.models_users import User, UserRole, UserStatus, UserSession, AuditLog
+from app.db.models_users import User, UserSession, AuditLog
 from app.core.auth import (
     hash_password,
     verify_password,
@@ -81,7 +81,7 @@ async def create_user_session(db: Session, user: User, access_token: str, refres
         user_id=user.id,
         token=access_token,
         refresh_token=refresh_token,
-        ip_address=request.client.host if request.client else None,
+        ip_address=getattr(request.client, 'host', None) if hasattr(request, 'client') and request.client else None,
         user_agent=request.headers.get("user-agent", ""),
         created_at=datetime.utcnow(),
         expires_at=datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
@@ -104,7 +104,7 @@ async def log_audit_action(db: Session, user: User, action: str, description: st
         resource_type="User",
         resource_id=str(user.id),
         description=description,
-        ip_address=request.client.host if request.client else None,
+        ip_address=getattr(request.client, 'host', None) if hasattr(request, 'client') and request.client else None,
         user_agent=request.headers.get("user-agent", ""),
         timestamp=datetime.utcnow(),
         status="SUCCESS"
@@ -203,8 +203,8 @@ async def login(
             "username": user.username,
             "first_name": user.first_name,
             "last_name": user.last_name,
-            "role": user.role.value,
-            "status": user.status.value
+            "role": user.role,
+            "status": user.status
         }
     )
 
@@ -283,8 +283,8 @@ async def register(
             "username": new_user.username,
             "first_name": new_user.first_name,
             "last_name": new_user.last_name,
-            "role": new_user.role.value,
-            "status": new_user.status.value
+            "role": new_user.role,
+            "status": new_user.status
         }
     )
 
@@ -403,8 +403,8 @@ async def get_current_user_profile(
         first_name=current_user.first_name,
         last_name=current_user.last_name,
         phone=current_user.phone,
-        role=current_user.role.value,
-        status=current_user.status.value,
+        role=current_user.role,
+        status=current_user.status,
         avatar_url=current_user.avatar_url,
         department=current_user.department,
         job_title=current_user.job_title,

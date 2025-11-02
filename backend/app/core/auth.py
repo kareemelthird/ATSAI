@@ -12,7 +12,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
-from app.db.models_users import User, UserRole, UserStatus, UserSession, AuditLog
+from app.db.models_users import User, UserSession, AuditLog
 from app.core.config import settings
 
 # JWT settings
@@ -105,10 +105,10 @@ async def get_current_user(
             detail="User not found"
         )
     
-    if user.status != UserStatus.ACTIVE:
+    if user.status != "active":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"User account is {user.status.value}"
+            detail=f"User account is {user.status}"
         )
     
     # Update last activity
@@ -122,7 +122,7 @@ async def get_current_active_user(
     current_user: User = Depends(get_current_user)
 ) -> User:
     """Get current active user"""
-    if current_user.status != UserStatus.ACTIVE:
+    if current_user.status != "active":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Inactive user"
@@ -133,35 +133,35 @@ async def get_current_active_user(
 class RoleChecker:
     """Dependency to check user roles"""
     
-    def __init__(self, allowed_roles: list[UserRole]):
+    def __init__(self, allowed_roles: list[str]):
         self.allowed_roles = allowed_roles
     
     def __call__(self, current_user: User = Depends(get_current_user)) -> User:
         if current_user.role not in self.allowed_roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Access denied. Required roles: {[r.value for r in self.allowed_roles]}"
+                detail=f"Access denied. Required roles: {self.allowed_roles}"
             )
         return current_user
 
 
 # Role-specific dependencies
-require_super_admin = RoleChecker([UserRole.SUPER_ADMIN])
-require_admin = RoleChecker([UserRole.SUPER_ADMIN, UserRole.ADMIN])
-require_hr_manager = RoleChecker([UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.HR_MANAGER])
-require_recruiter = RoleChecker([UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.HR_MANAGER, UserRole.RECRUITER])
+require_super_admin = RoleChecker(["super_admin"])
+require_admin = RoleChecker(["super_admin", "admin"])
+require_hr_manager = RoleChecker(["super_admin", "admin", "hr_manager"])
+require_recruiter = RoleChecker(["super_admin", "admin", "hr_manager", "recruiter"])
 
 
 def has_permission(user: User, resource: str, action: str) -> bool:
     """Check if user has permission for a resource action"""
     
     # Super admin has all permissions
-    if user.role == UserRole.SUPER_ADMIN:
+    if user.role == "super_admin":
         return True
     
     # Define permissions matrix
     permissions = {
-        UserRole.ADMIN: {
+        "admin": {
             "users": ["create", "read", "update", "delete"],
             "candidates": ["create", "read", "update", "delete", "export"],
             "jobs": ["create", "read", "update", "delete"],
@@ -169,18 +169,18 @@ def has_permission(user: User, resource: str, action: str) -> bool:
             "settings": ["read", "update"],
             "reports": ["read", "export"],
         },
-        UserRole.HR_MANAGER: {
+        "hr_manager": {
             "candidates": ["create", "read", "update", "delete", "export"],
             "jobs": ["create", "read", "update", "delete"],
             "applications": ["create", "read", "update", "delete"],
             "reports": ["read", "export"],
         },
-        UserRole.RECRUITER: {
+        "recruiter": {
             "candidates": ["create", "read", "update"],
             "jobs": ["read"],
             "applications": ["create", "read", "update"],
         },
-        UserRole.VIEWER: {
+        "viewer": {
             "candidates": ["read"],
             "jobs": ["read"],
             "applications": ["read"],
@@ -211,7 +211,7 @@ async def log_audit(
     audit_log = AuditLog(
         user_id=user.id,
         username=user.username,
-        user_role=user.role.value,
+        user_role=user.role,
         action=action,
         resource_type=resource_type,
         resource_id=resource_id,
