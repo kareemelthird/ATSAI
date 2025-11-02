@@ -135,7 +135,7 @@ async def list_users(
             last_name=user.last_name,
             phone=user.phone,
             role=user.role,
-            status=user.status.value,
+            status=user.status,
             department=user.department,
             job_title=user.job_title,
             is_email_verified=user.is_email_verified or False,
@@ -222,7 +222,7 @@ async def create_user(
         last_name=new_user.last_name,
         phone=new_user.phone,
         role=new_user.role,
-        status=new_user.status.value,
+        status=new_user.status,
         department=new_user.department,
         job_title=new_user.job_title,
         is_email_verified=new_user.is_email_verified or False,
@@ -269,7 +269,7 @@ async def get_user(
         last_name=user.last_name,
         phone=user.phone,
         role=user.role,
-        status=user.status.value,
+        status=user.status,
         department=user.department,
         job_title=user.job_title,
         is_email_verified=user.is_email_verified or False,
@@ -328,7 +328,7 @@ async def update_user(
     old_values = {
         "email": user.email,
         "role": user.role,
-        "status": user.status.value
+        "status": user.status
     }
     
     # Update fields
@@ -358,7 +358,7 @@ async def update_user(
         last_name=user.last_name,
         phone=user.phone,
         role=user.role,
-        status=user.status.value,
+        status=user.status,
         department=user.department,
         job_title=user.job_title,
         is_email_verified=user.is_email_verified or False,
@@ -469,16 +469,16 @@ async def change_user_role(
     # Log audit
     await log_audit_action(
         db, current_user, "CHANGE_ROLE", str(user.id),
-        f"Changed role of {user.email} from {old_role.value} to {role_data.role.value}",
-        old_values={"role": old_role.value},
-        new_values={"role": role_data.role.value},
+        f"Changed role of {user.email} from {old_role} to {role_data.role}",
+        old_values={"role": old_role},
+        new_values={"role": role_data.role},
         request=request
     )
     
     return {
-        "message": f"User role changed from {old_role.value} to {role_data.role.value}",
+        "message": f"User role changed from {old_role} to {role_data.role}",
         "user_id": str(user.id),
-        "new_role": role_data.role.value
+        "new_role": role_data.role
     }
 
 
