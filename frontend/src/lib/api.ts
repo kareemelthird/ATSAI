@@ -19,6 +19,7 @@ console.log('🔧 API Base URL:', API_BASE_URL)
 console.log('🔧 Environment:', import.meta.env.MODE)
 console.log('🔧 Production mode:', import.meta.env.PROD)
 console.log('🔧 VITE_API_URL from env:', import.meta.env.VITE_API_URL)
+console.log('🔧 Window location origin:', window.location.origin)
 
 export const api = axios.create({
   baseURL: `${API_BASE_URL}/api/v1`,
