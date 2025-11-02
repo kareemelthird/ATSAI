@@ -34,7 +34,10 @@ export default function AdminSettings() {
   const fetchSettings = async () => {
     try {
       setLoading(true);
+      console.log('🔄 Fetching settings...');
       const response = await api.get('/settings/');
+      console.log('✅ Settings response:', response.status, response.data);
+      console.log('📊 Settings count:', response.data?.length);
       setSettings(response.data);
       setError('');
       
@@ -43,10 +46,13 @@ export default function AdminSettings() {
       response.data.forEach((setting: Setting) => {
         values[setting.key] = setting.value;
       });
+      console.log('💾 Edited values initialized:', Object.keys(values).length, 'settings');
       setEditedValues(values);
     } catch (err: any) {
+      console.error('❌ Error fetching settings:', err);
+      console.error('Response status:', err.response?.status);
+      console.error('Response data:', err.response?.data);
       setError(err.response?.data?.detail || 'Failed to fetch settings');
-      console.error('Error fetching settings:', err);
     } finally {
       setLoading(false);
     }
@@ -185,6 +191,11 @@ export default function AdminSettings() {
     
     return true;
   });
+  
+  console.log('🔍 Active category:', activeCategory);
+  console.log('📝 Total settings:', settings.length);
+  console.log('🎯 Filtered settings:', filteredSettings.length);
+  console.log('📋 Filtered settings keys:', filteredSettings.map(s => s.key));
   
   const hasUnsavedChanges = (setting: Setting) => {
     return editedValues[setting.key] !== setting.value && editedValues[setting.key] !== '***ENCRYPTED***';
