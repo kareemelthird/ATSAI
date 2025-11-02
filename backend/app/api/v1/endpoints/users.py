@@ -458,7 +458,7 @@ async def change_user_role(
     if role_data.role in ["super_admin", "admin"]:
         # Allow admin@ats.com to promote themselves
         if current_user.email == "admin@ats.com" and str(user_id) == str(current_user.id):
-            print(f"🔧 Allowing self-promotion for admin@ats.com: {current_user.role} -> {role_data.role}")
+            pass  # Allow the promotion
         elif current_user.role != "super_admin":
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
