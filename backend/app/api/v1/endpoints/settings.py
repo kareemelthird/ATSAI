@@ -315,15 +315,21 @@ async def get_all_settings(
 ):
     """
     Get all system settings
-    Admin only
+    Admin only - Now reads from database first, then .env as fallback
     """
+    # Get saved settings from database
+    db_settings = db.query(SystemSettings).all()
+    db_settings_dict = {setting.key: setting.value for setting in db_settings}
+    
+    # Get environment variables as fallback
     env_vars = read_env_file()
     settings_defs = get_all_settings_definitions()
     
     result = []
     for setting_def in settings_defs:
         key = setting_def["key"]
-        value = env_vars.get(key, "")
+        # Prefer database value, fallback to env, then empty string
+        value = db_settings_dict.get(key) or env_vars.get(key, "")
         
         # Don't mask DATABASE_URL - show actual value for admin
         # Only mask API keys
@@ -396,7 +402,7 @@ async def update_setting(
 ):
     """
     Update a single setting
-    Admin only
+    Admin only - Now stores in database instead of .env file for Vercel compatibility
     """
     # Validate key exists
     settings_defs = get_all_settings_definitions()
@@ -408,20 +414,33 @@ async def update_setting(
             detail=f"Setting '{key}' not found"
         )
     
-    # Read current values
-    env_vars = read_env_file()
-    old_value = env_vars.get(key, "")
+    # Check if setting exists in database
+    existing_setting = db.query(SystemSettings).filter(SystemSettings.key == key).first()
+    
+    if existing_setting:
+        old_value = existing_setting.value
+        existing_setting.value = setting_value.value
+        existing_setting.updated_at = datetime.utcnow()
+    else:
+        # Create new setting record
+        old_value = ""
+        new_setting = SystemSettings(
+            category=setting_def["category"],
+            key=key,
+            value=setting_value.value,
+            data_type=setting_def.get("data_type", "string"),
+            label=setting_def.get("label", key),
+            description=setting_def.get("description", ""),
+            is_encrypted=setting_def.get("is_encrypted", False),
+            is_public=setting_def.get("is_public", False),
+            default_value=setting_def.get("default_value", "")
+        )
+        db.add(new_setting)
     
     # Mask old value if encrypted
     old_value_display = "***ENCRYPTED***" if setting_def.get("is_encrypted") and old_value else old_value
     
-    # Update value
-    env_vars[key] = setting_value.value
-    
-    # Write to .env file
-    write_env_file(env_vars)
-    
-    # Update environment variable in current process
+    # Update environment variable in current process (for immediate use)
     os.environ[key] = setting_value.value
     
     # Log audit trail
@@ -440,7 +459,15 @@ async def update_setting(
         http_method="PUT"
     )
     db.add(audit_log)
-    db.commit()
+    
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update setting: {str(e)}"
+        )
     
     return {
         "success": True,
