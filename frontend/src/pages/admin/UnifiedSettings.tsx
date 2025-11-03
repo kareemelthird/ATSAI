@@ -139,7 +139,7 @@ const AdminSettings: React.FC = () => {
         try {
           console.log(`🔧 [UnifiedSettings] Updating ${setting.setting_key}...`);
           const response = await api.put(`/settings/${setting.setting_key}`, {
-            setting_value: setting.setting_value,
+            value: setting.setting_value,  // Use 'value' not 'setting_value'
             is_active: true
           });
           console.log(`🔧 [UnifiedSettings] Success: ${setting.setting_key}`, response.data);
