@@ -30,6 +30,12 @@ export default function AdminSettings() {
 
   useEffect(() => {
     console.log('🎯 useEffect TRIGGERED - About to call fetchSettings');
+    console.log('📊 Initial state:', { 
+      loading, 
+      settingsLength: settings.length, 
+      error, 
+      activeCategory 
+    });
     fetchSettings();
   }, []);
 
@@ -329,6 +335,16 @@ export default function AdminSettings() {
     return editedValues[setting.key] !== setting.value && editedValues[setting.key] !== '***ENCRYPTED***';
   };
 
+  // DEBUG: Log component state on every render
+  console.log('🔄 SETTINGS COMPONENT RENDER:', {
+    loading,
+    settingsCount: settings.length,
+    filteredCount: filteredSettings.length,
+    activeCategory,
+    error,
+    success
+  });
+
   return (
     <div className="p-6">
       {/* Header */}
@@ -344,6 +360,18 @@ export default function AdminSettings() {
             </p>
           </div>
           <div className="flex gap-2">
+            <button
+              onClick={() => {
+                console.log('🔧 FORCE RELOAD - Resetting state');
+                setLoading(false);
+                setError('');
+                fetchSettings();
+              }}
+              className="flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+            >
+              <Power className="w-5 h-5 mr-2" />
+              Force Reload
+            </button>
             <button
               onClick={forceAuthRefresh}
               disabled={debugMode}
