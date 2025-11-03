@@ -130,16 +130,45 @@ const AdminSettings: React.FC = () => {
   // Update settings mutation
   const updateSettingsMutation = useMutation({
     mutationFn: async (settings: Array<{ setting_key: string; setting_value: string; description?: string }>) => {
-      const response = await api.post('/admin/settings/bulk-update', settings);
-      return response.data;
+      console.log('🔧 [UnifiedSettings] Starting bulk update...');
+      console.log('🔧 [UnifiedSettings] Settings to update:', settings);
+      
+      // Try individual updates since bulk-update might be broken
+      const results = [];
+      for (const setting of settings) {
+        try {
+          console.log(`🔧 [UnifiedSettings] Updating ${setting.setting_key}...`);
+          const response = await api.put(`/settings/${setting.setting_key}`, {
+            setting_value: setting.setting_value,
+            is_active: true
+          });
+          console.log(`🔧 [UnifiedSettings] Success: ${setting.setting_key}`, response.data);
+          results.push({ key: setting.setting_key, success: true });
+        } catch (error) {
+          console.error(`🔧 [UnifiedSettings] Failed: ${setting.setting_key}`, error);
+          results.push({ key: setting.setting_key, success: false, error });
+        }
+      }
+      
+      console.log('🔧 [UnifiedSettings] All updates completed:', results);
+      return results;
     },
-    onSuccess: () => {
+    onSuccess: (results) => {
+      const successful = results.filter(r => r.success).length;
+      const total = results.length;
+      
       queryClient.invalidateQueries({ queryKey: ['admin-settings'] });
       queryClient.invalidateQueries({ queryKey: ['admin-stats'] });
       setEditingSettings({});
-      alert('Settings updated successfully!');
+      
+      if (successful === total) {
+        alert(`✅ All ${total} settings updated successfully!`);
+      } else {
+        alert(`⚠️ Updated ${successful}/${total} settings. Check console for details.`);
+      }
     },
     onError: (error: any) => {
+      console.error('🔧 [UnifiedSettings] Mutation error:', error);
       alert(`Failed to update settings: ${error.response?.data?.detail || error.message}`);
     }
   });
@@ -162,16 +191,23 @@ const AdminSettings: React.FC = () => {
   };
 
   const handleSaveSettings = () => {
+    console.log('🔧 [UnifiedSettings] Save button clicked');
+    console.log('🔧 [UnifiedSettings] Current editingSettings:', editingSettings);
+    
     const updates = Object.entries(editingSettings).map(([key, value]) => ({
       setting_key: key,
       setting_value: value
     }));
 
+    console.log('🔧 [UnifiedSettings] Updates to send:', updates);
+
     if (updates.length === 0) {
+      console.log('🔧 [UnifiedSettings] No changes to save');
       alert('No changes to save');
       return;
     }
 
+    console.log('🔧 [UnifiedSettings] Sending bulk update...');
     updateSettingsMutation.mutate(updates);
   };
 

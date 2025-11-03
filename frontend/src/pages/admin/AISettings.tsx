@@ -3,8 +3,6 @@ import { Save, RefreshCw, AlertCircle, CheckCircle, Settings, MessageSquare, Fil
 import axios from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
 
-import { useState, useEffect } from 'react';
-
 const getAPIBaseURL = () => {
   if (import.meta.env.PROD) {
     return window.location.origin
