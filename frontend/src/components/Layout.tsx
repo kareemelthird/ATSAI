@@ -4,7 +4,15 @@ import { useAuth } from '../contexts/AuthContext'
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// Get the correct API base URL for the environment
+const getAPIBaseURL = () => {
+  if (import.meta.env.PROD) {
+    return window.location.origin
+  }
+  return import.meta.env.VITE_API_URL || 'http://localhost:8000'
+}
+
+const API_BASE_URL = getAPIBaseURL();
 
 const Layout = () => {
   const location = useLocation()
