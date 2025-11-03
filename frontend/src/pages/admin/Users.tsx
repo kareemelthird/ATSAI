@@ -182,8 +182,8 @@ export default function AdminUsers() {
       first_name: '',
       last_name: '',
       phone: '',
-      role: 'VIEWER',
-      status: 'ACTIVE'
+      role: 'recruiter',
+      status: 'active'
     });
     setSelectedUser(null);
   };
@@ -234,7 +234,7 @@ export default function AdminUsers() {
     return colors[status] || colors['inactive'];
   };
 
-  const canChangeRoleToAdmin = currentUser?.role === 'super_admin';
+  const canChangeRoleToAdmin = currentUser?.role === 'admin';  // Allow admin users to change roles to admin
 
   return (
     <div className="p-6">

@@ -321,6 +321,9 @@ export default function AdminSettings() {
   console.log('📝 Total settings:', settings.length);
   console.log('🎯 Filtered settings:', filteredSettings.length);
   console.log('📋 Filtered settings keys:', filteredSettings.map(s => s.key));
+  console.log('⏳ Loading state:', loading);
+  console.log('❌ Error state:', error);
+  console.log('✅ Success state:', success);
   
   const hasUnsavedChanges = (setting: Setting) => {
     return editedValues[setting.key] !== setting.value && editedValues[setting.key] !== '***ENCRYPTED***';
