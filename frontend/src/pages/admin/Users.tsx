@@ -43,12 +43,12 @@ export default function AdminUsers() {
     first_name: '',
     last_name: '',
     phone: '',
-    role: 'VIEWER',
-    status: 'ACTIVE'
+    role: 'recruiter',  // Default to recruiter instead of VIEWER
+    status: 'active'    // Lowercase to match backend
   });
 
-  const roles = ['viewer', 'recruiter', 'hr_manager', 'admin', 'super_admin'];
-  const statuses = ['ACTIVE', 'INACTIVE', 'SUSPENDED', 'PENDING'];
+  const roles = ['admin', 'hr_manager', 'recruiter'];  // Only database-allowed roles
+  const statuses = ['active', 'inactive', 'suspended', 'pending'];  // Lowercase to match backend
 
   // Helper to safely extract error message
   const getErrorMessage = (err: any, defaultMsg: string = 'An error occurred'): string => {
