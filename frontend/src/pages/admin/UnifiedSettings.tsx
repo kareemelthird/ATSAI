@@ -74,11 +74,24 @@ const AdminSettings: React.FC = () => {
     queryKey: ['admin-settings'],
     queryFn: async () => {
       console.log('🔧 [UnifiedSettings] Starting fetchSettings API call');
-      console.log('🔧 [UnifiedSettings] API URL: /admin/settings/all');
+      console.log('🔧 [UnifiedSettings] API URL: /settings/');
       try {
-        const response = await api.get('/admin/settings/all');
+        const response = await api.get('/settings/');
         console.log('🔧 [UnifiedSettings] Settings API success:', response.status, response.data);
-        return response.data;
+        
+        // Transform the data format to match what UnifiedSettings expects
+        const transformedSettings = response.data.map((setting: any, index: number) => ({
+          id: setting.id || `setting-${index}`,
+          key: setting.key,
+          value: setting.value || '',
+          type: setting.data_type || 'string',
+          description: setting.description || '',
+          is_active: true, // Default to active
+          updated_at: new Date().toISOString()
+        }));
+        
+        console.log('🔧 [UnifiedSettings] Transformed settings:', transformedSettings.length);
+        return transformedSettings;
       } catch (error) {
         console.error('🔧 [UnifiedSettings] Settings API error:', error);
         throw error;
@@ -171,7 +184,7 @@ const AdminSettings: React.FC = () => {
   const hasChanges = Object.keys(editingSettings).length > 0;
 
   // Group settings by category
-  const groupedSettings = settingsData?.settings?.reduce((acc: Record<string, SystemSetting[]>, setting: SystemSetting) => {
+  const groupedSettings = settingsData?.reduce((acc: Record<string, SystemSetting[]>, setting: SystemSetting) => {
     let category = 'General';
     
     if (setting.key.includes('groq') || setting.key.includes('ai_model') || setting.key.includes('openrouter')) {

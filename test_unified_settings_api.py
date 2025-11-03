@@ -65,12 +65,18 @@ def test_unified_settings_api():
             if response.status_code == 200:
                 data = response.json()
                 if endpoint == "/admin/settings/all":
-                    if isinstance(data, list):
-                        print(f"   Settings count: {len(data)}")
-                        print(f"   First setting: {data[0] if data else 'None'}")
+                    print(f"   Full response: {data}")
+                    if isinstance(data, dict):
+                        print(f"   Response keys: {list(data.keys())}")
+                        if 'settings' in data:
+                            settings = data['settings']
+                            print(f"   Settings array length: {len(settings)}")
+                            print(f"   Settings content: {settings}")
+                        if 'parsed_values' in data:
+                            print(f"   Parsed values keys: {list(data['parsed_values'].keys())}")
                     else:
-                        print(f"   Settings data type: {type(data)}")
-                        print(f"   Settings keys: {list(data.keys()) if isinstance(data, dict) else 'Not dict'}")
+                        print(f"   Data type: {type(data)}")
+                        print(f"   Data content: {data}")
                 elif endpoint == "/admin/stats/system":
                     print(f"   Stats keys: {list(data.keys()) if isinstance(data, dict) else type(data)}")
                 elif endpoint == "/admin/users/usage":
