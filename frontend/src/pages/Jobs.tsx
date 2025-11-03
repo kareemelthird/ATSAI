@@ -5,7 +5,14 @@ import { jobApi } from '@/lib/api';
 import { Briefcase, MapPin, DollarSign, Plus, Calendar, Users, Edit, Trash2, X, Building2, Clock, TrendingUp } from 'lucide-react';
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const getAPIBaseURL = () => {
+  if (import.meta.env.PROD) {
+    return window.location.origin
+  }
+  return import.meta.env.VITE_API_URL || 'http://localhost:8000'
+}
+
+const API_BASE_URL = getAPIBaseURL();
 const API_URL = `${API_BASE_URL}/api/v1`;
 
 interface Job {

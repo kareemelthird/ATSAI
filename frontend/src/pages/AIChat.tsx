@@ -4,7 +4,17 @@ import { aiApi, api } from '@/lib/api'
 import { Send, Bot, Download, User, Trash2, AlertTriangle } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+import axios from 'axios';
+
+const getAPIBaseURL = () => {
+  if (import.meta.env.PROD) {
+    return window.location.origin
+  }
+  return import.meta.env.VITE_API_URL || 'http://localhost:8000'
+}
+
+const API_BASE_URL = getAPIBaseURL();
+const API_URL = `${API_BASE_URL}/api/v1`;
 
 interface CandidateInfo {
   id: string

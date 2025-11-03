@@ -4,7 +4,14 @@ import { candidateApi, resumeApi } from '@/lib/api'
 import { Mail, Phone, MapPin, Linkedin, Github, Globe, Download, Trash2, FileText, Calendar, CheckCircle, Clock, XCircle, ArrowLeft, ExternalLink, Eye } from 'lucide-react'
 import { useState } from 'react'
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const getAPIBaseURL = () => {
+  if (import.meta.env.PROD) {
+    return window.location.origin
+  }
+  return import.meta.env.VITE_API_URL || 'http://localhost:8000'
+}
+
+const API_BASE_URL = getAPIBaseURL();
 
 const CandidateDetail = () => {
   const { id } = useParams<{ id: string }>()

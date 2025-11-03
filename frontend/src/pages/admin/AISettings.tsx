@@ -3,7 +3,16 @@ import { Save, RefreshCw, AlertCircle, CheckCircle, Settings, MessageSquare, Fil
 import axios from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
 
-const API_BASE_URL = (import.meta as any).env.VITE_API_URL || 'http://localhost:8000';
+import { useState, useEffect } from 'react';
+
+const getAPIBaseURL = () => {
+  if (import.meta.env.PROD) {
+    return window.location.origin
+  }
+  return import.meta.env.VITE_API_URL || 'http://localhost:8000'
+}
+
+const API_BASE_URL = getAPIBaseURL();
 
 interface AISetting {
   id: number;
