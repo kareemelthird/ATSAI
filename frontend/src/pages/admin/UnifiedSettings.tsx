@@ -73,8 +73,16 @@ const AdminSettings: React.FC = () => {
   const { data: settingsData, isLoading: settingsLoading } = useQuery({
     queryKey: ['admin-settings'],
     queryFn: async () => {
-      const response = await api.get('/admin/settings/all');
-      return response.data;
+      console.log('🔧 [UnifiedSettings] Starting fetchSettings API call');
+      console.log('🔧 [UnifiedSettings] API URL: /admin/settings/all');
+      try {
+        const response = await api.get('/admin/settings/all');
+        console.log('🔧 [UnifiedSettings] Settings API success:', response.status, response.data);
+        return response.data;
+      } catch (error) {
+        console.error('🔧 [UnifiedSettings] Settings API error:', error);
+        throw error;
+      }
     }
   });
 
@@ -295,6 +303,7 @@ const AdminSettings: React.FC = () => {
         <div className="text-center py-12">
           <ArrowPathIcon className="h-8 w-8 animate-spin mx-auto text-indigo-600" />
           <p className="mt-2 text-gray-500">Loading settings...</p>
+          <p className="mt-1 text-xs text-gray-400">Debug: settingsLoading = {String(settingsLoading)}</p>
         </div>
       ) : (
         <div className="space-y-8">
