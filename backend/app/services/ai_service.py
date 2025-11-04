@@ -911,29 +911,16 @@ async def chat_with_database(query: str, db: Session, current_user = None, conve
         
         custom_instructions = get_ai_setting(db, setting_key, default_value=default_instructions)
         
-        # Simple conversational prompt without candidate data
-        simple_prompt = f"""You are an AI HR assistant specialized in recruitment and candidate evaluation. 
+        # Get chat instructions from database settings
+        chat_instructions = get_ai_setting(db, "ai_chat_instructions", 
+                                          default_value="You are an AI HR assistant. Help with recruitment questions professionally.")
+        
+        # Simple conversational prompt using configurable instructions
+        simple_prompt = f"""Current Question: {query}
 
-Current Question: {query}
+{chat_instructions}
 
-Instructions for responses:
-- If asked about your function/role, explain that you're specialized in:
-  • Analyzing resumes and candidate profiles
-  • Matching candidates to job requirements  
-  • Evaluating candidates against specific criteria
-  • Providing recommendations for recruitment decisions
-  • Comparing multiple candidates for positions
-
-- When evaluating candidates against job requirements:
-  • Be strict about mandatory requirements (education, experience, skills)
-  • If a candidate lacks a required degree, maximum score should be 5/10
-  • If they lack required experience, adjust score accordingly
-  • Only give 8+ scores to candidates who meet ALL basic requirements
-  • Provide clear reasoning for your evaluations
-
-- Always respond in {"Arabic" if user_language == "arabic" else "English"} language
-- Be professional, detailed, and specific
-- Use structured formatting when discussing candidates or jobs
+Language: {"Arabic" if user_language == "arabic" else "English"}
 
 Answer the question directly and professionally."""
 
@@ -946,21 +933,10 @@ Answer the question directly and professionally."""
             }
         except Exception as e:
             print(f"❌ AI API Error: {e}")
-            fallback_response = """I'm an AI HR assistant specialized in helping you with recruitment tasks. I can help you:
-
-• Find and evaluate candidates for positions
-• Analyze resumes and match skills to job requirements  
-• Compare candidates and provide detailed assessments
-• Answer questions about recruitment processes
-
-How can I assist you with your hiring needs today?""" if user_language == "english" else """أنا مساعد ذكي متخصص في الموارد البشرية أساعدك في:
-
-• البحث عن المرشحين وتقييمهم للوظائف
-• تحليل السير الذاتية ومطابقة المهارات مع متطلبات الوظيفة
-• مقارنة المرشحين وتقديم تقييمات مفصلة  
-• الإجابة على أسئلة عمليات التوظيف
-
-كيف يمكنني مساعدتك في احتياجات التوظيف اليوم؟"""
+            # Get fallback response from settings
+            fallback_response = get_ai_setting(db, f"ai_fallback_response_{user_language}", 
+                                             default_value="I'm here to help with your questions." if user_language == "english" 
+                                             else "أنا هنا لمساعدتك في أسئلتك.")
             return {
                 "response": fallback_response,
                 "candidates": [],
@@ -1179,45 +1155,13 @@ CURRENT DATABASE CONTEXT:
             conversation_context += f"{role}: {content}\n"
         conversation_context += "\n"
 
-    # Enhance prompt with structured evaluation format
+    # Get evaluation format from database settings instead of hard-coding
     evaluation_format = {
-        "arabic": """
-📋 **تعليمات التقييم الصارمة:**
-
-🚨 **قواعد التقييم الإجبارية:**
-- إذا كان المرشح لا يملك المتطلبات الأساسية (شهادة جامعية مطلوبة، سنوات خبرة محددة): الحد الأقصى 5/10
-- إذا كان ينقصه مهارة تقنية أساسية مطلوبة: الحد الأقصى 6/10  
-- إذا كان لديه معظم المتطلبات لكن ينقصه شيء مهم: الحد الأقصى 7/10
-- درجة 8+ فقط للمرشحين الذين يلبون جميع المتطلبات الأساسية
-- درجة 10/10 للمرشحين المثاليين الذين يتجاوزون المتطلبات
-
-📊 **تنسيق التقييم المطلوب:**
-لكل مرشح، قدم:
-- الاسم والدرجة: [الاسم] - التقييم: [X/10]
-- تحليل المتطلبات: هل يلبي المتطلبات الأساسية؟ (نعم/لا مع التفاصيل)
-- نقاط القوة: [قائمة محددة]
-- نقاط الضعف: [قائمة محددة] 
-- مدى الملاءمة للوظيفة: [تفاصيل محددة]
-- التوصية: [توصية واضحة ومبررة]""",
-        
-        "english": """
-📋 **STRICT EVALUATION GUIDELINES:**
-
-🚨 **MANDATORY EVALUATION RULES:**
-- If candidate lacks basic requirements (required degree, specific years experience): MAX 5/10
-- If missing a required technical skill: MAX 6/10
-- If has most requirements but missing something important: MAX 7/10
-- Score 8+ ONLY for candidates who meet ALL basic requirements
-- Score 10/10 for exceptional candidates who exceed requirements
-
-📊 **REQUIRED EVALUATION FORMAT:**
-For each candidate, provide:
-- Name and Score: [Name] - Rating: [X/10]
-- Requirements Analysis: Does candidate meet basic requirements? (Yes/No with details)
-- Strengths: [specific list]
-- Weaknesses: [specific list]
-- Job Fit: [specific details about match]
-- Recommendation: [clear, justified recommendation]"""
+        "arabic": get_ai_setting(db, "ai_evaluation_format_arabic", 
+                                default_value="قيّم المرشحين بناءً على مؤهلاتهم ومدى ملاءمتهم للوظيفة المطلوبة."),
+        "english": get_ai_setting(db, "ai_evaluation_format_english", 
+                                 default_value="Evaluate candidates based on their qualifications and job fit.")
+    }
 - State the specific job position mentioned in the query
 - Rate each candidate with a score out of 10
 - List specific strengths and weaknesses for each candidate

@@ -240,6 +240,46 @@ def get_all_settings_definitions() -> List[Dict[str, Any]]:
             "data_type": "text",
             "requires_restart": False
         },
+        {
+            "category": "ai_provider",
+            "key": "ai_chat_instructions",
+            "label": "AI Chat Instructions",
+            "description": "Instructions for general AI chat responses and behavior",
+            "data_type": "text",
+            "requires_restart": False
+        },
+        {
+            "category": "ai_provider",
+            "key": "ai_evaluation_format_arabic",
+            "label": "AI Evaluation Format (Arabic)",
+            "description": "Format and guidelines for AI candidate evaluation in Arabic",
+            "data_type": "text",
+            "requires_restart": False
+        },
+        {
+            "category": "ai_provider",
+            "key": "ai_evaluation_format_english",
+            "label": "AI Evaluation Format (English)",
+            "description": "Format and guidelines for AI candidate evaluation in English",
+            "data_type": "text",
+            "requires_restart": False
+        },
+        {
+            "category": "ai_provider",
+            "key": "ai_fallback_response_arabic",
+            "label": "AI Fallback Response (Arabic)",
+            "description": "Default response when AI service is unavailable (Arabic)",
+            "data_type": "text",
+            "requires_restart": False
+        },
+        {
+            "category": "ai_provider",
+            "key": "ai_fallback_response_english",
+            "label": "AI Fallback Response (English)",
+            "description": "Default response when AI service is unavailable (English)",
+            "data_type": "text",
+            "requires_restart": False
+        },
         
         # Application Settings
         {
