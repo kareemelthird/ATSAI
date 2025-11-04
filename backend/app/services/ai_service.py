@@ -94,9 +94,13 @@ async def call_ai_api(prompt: str, system_message: str = None, user_api_key: str
             
             if is_role_question:
                 if user_language == "arabic":
-                    return "أنا مساعد ذكي متخصص في الموارد البشرية أساعدك في العثور على أفضل المرشحين وتحليل ملفاتهم الشخصية. يمكنني مساعدتك في:\n\n• البحث عن المرشحين المناسبين للوظائف\n• تحليل وتقييم السير الذاتية\n• مقارنة المرشحين وترتيبهم حسب الأولوية\n• الإجابة على استفساراتك حول عملية التوظيف\n\nكيف يمكنني مساعدتك اليوم؟"
+                    mock_response = get_ai_setting(db, "ai_mock_role_response_arabic", 
+                        default_value="مساعد ذكي للموارد البشرية") if db else "مساعد ذكي"
+                    return mock_response
                 else:
-                    return "I'm an AI HR assistant helping you find the best candidates and analyze their profiles. I can help you with:\n\n• Finding suitable candidates for job positions\n• Analyzing and evaluating resumes\n• Comparing candidates and ranking them by priority\n• Answering your recruitment questions\n\nHow can I help you today?"
+                    mock_response = get_ai_setting(db, "ai_mock_role_response_english", 
+                        default_value="AI HR assistant") if db else "AI assistant"
+                    return mock_response
             
             # For other chat queries, provide helpful responses
             if "CANDIDATE PROFILES:" in prompt and not prompt.split("CANDIDATE PROFILES:")[1].strip().startswith("IMPORTANT"):
@@ -127,9 +131,13 @@ async def call_ai_api(prompt: str, system_message: str = None, user_api_key: str
             
             # Default conversational response
             if user_language == "arabic":
-                return "أهلاً بك! أنا هنا لمساعدتك في عملية التوظيف. يمكنني البحث عن المرشحين المناسبين وتحليل ملفاتهم الشخصية. ما هي الوظيفة أو المهارات التي تبحث عنها؟"
+                default_response = get_ai_setting(db, "ai_mock_default_response_arabic", 
+                    default_value="مساعد توظيف") if db else "مساعد"
+                return default_response
             else:
-                return "Hello! I'm here to help you with recruitment. I can search for suitable candidates and analyze their profiles. What position or skills are you looking for?"
+                default_response = get_ai_setting(db, "ai_mock_default_response_english", 
+                    default_value="HR assistant") if db else "Assistant"
+                return default_response
     
     # Use user's personal API key if provided
     if user_api_key:
@@ -363,30 +371,27 @@ async def analyze_resume(text: str, candidate_id: str, db: Session, current_user
     if current_user and hasattr(current_user, 'use_personal_ai_key') and current_user.use_personal_ai_key:
         user_api_key = getattr(current_user, 'personal_groq_api_key', None)
     
-    # Get system instructions from database (customizable by admin)
-    custom_instructions = get_ai_setting(
-        db, 
-        "ai_resume_analysis_instructions",
-        default_value="""You are an expert HR assistant that analyzes resumes.
-
-Extract information accurately and comprehensively:
-- Personal details (name, email, phone, location, links)
-- Professional summary highlighting key achievements
-- Calculate years of experience from work history
-- Skills categorized by type (technical, soft, domain)
-- Complete work experience with dates, companies, roles
-- Education with institutions, degrees, dates
-- Certifications with names, organizations, dates
-- Languages with proficiency levels
-
-Guidelines:
-- Be thorough but accurate
-- Include team leadership, project management details
-- Extract daily tasks, main responsibilities, and key accomplishments
-- Be comprehensive - capture ALL relevant information about each role"""
-    )
+    # Get custom instructions - user's custom instructions take priority
+    custom_instructions = None
+    if (current_user and 
+        getattr(current_user, 'use_custom_instructions', False) and 
+        getattr(current_user, 'custom_cv_analysis_instructions', None)):
+        
+        custom_instructions = current_user.custom_cv_analysis_instructions
+        print(f"✨ Using user custom CV analysis instructions")
+    else:
+        # Fallback to system instructions from database (customizable by admin)
+        custom_instructions = get_ai_setting(
+            db, 
+            "ai_resume_analysis_instructions",
+            default_value="AI resume analysis assistant"
+        )
+        print(f"🔧 Using system CV analysis instructions")
     
+    # Use the configurable instructions as the system message
     system_message = custom_instructions + """
+
+Expected JSON output format:
 {
   "first_name": "John",
   "last_name": "Doe Smith",
@@ -902,24 +907,45 @@ async def chat_with_database(query: str, db: Session, current_user = None, conve
         user_language = detect_language(query)
         print(f"🌐 Detected language: {user_language}")
         
+        # Get user's custom instructions if enabled
+        chat_instructions = None
+        if (current_user and 
+            getattr(current_user, 'use_custom_instructions', False) and 
+            getattr(current_user, 'custom_chat_instructions', None)):
+            
+            chat_instructions = current_user.custom_chat_instructions
+            print(f"✨ Using user custom chat instructions")
+        else:
+            # Fallback to system chat instructions
+            chat_instructions = get_ai_setting(db, "ai_chat_instructions", 
+                                              default_value="AI HR assistant")
+            print(f"🔧 Using system chat instructions")
+        
         # Get language-specific AI instructions from database
         if user_language == "arabic":
             setting_key = "ai_instructions_arabic"
-            default_instructions = """أنت مساعد ذكي ودود. أجب على الأسئلة بطريقة طبيعية ومفيدة."""
+            default_instructions = get_ai_setting(db, setting_key, 
+                default_value="مساعد ذكي")
         else:
             setting_key = "ai_instructions_english" 
-            default_instructions = """You are a friendly, helpful AI assistant. Answer questions naturally and helpfully. IMPORTANT: Always respond in English language only."""
+            default_instructions = get_ai_setting(db, setting_key,
+                default_value="AI assistant")
         
-        custom_instructions = get_ai_setting(db, setting_key, default_value=default_instructions)
+        custom_instructions = default_instructions
         
-        # Get chat instructions from database settings
-        chat_instructions = get_ai_setting(db, "ai_chat_instructions", 
-                                          default_value="You are an AI HR assistant. Help with recruitment questions professionally.")
+        # Get language enforcement instruction from settings
+        if user_language == "arabic":
+            language_instruction = get_ai_setting(db, "ai_language_enforcement_arabic", 
+                default_value="استخدم العربية فقط")
+        else:
+            language_instruction = get_ai_setting(db, "ai_language_enforcement_english", 
+                default_value="Use English only")
         
-        # Simple conversational prompt using configurable instructions
         simple_prompt = f"""Current Question: {query}
 
 {chat_instructions}
+
+{language_instruction}
 
 Language: {"Arabic" if user_language == "arabic" else "English"}
 
@@ -936,8 +962,8 @@ Answer the question directly and professionally."""
             print(f"❌ AI API Error: {e}")
             # Get fallback response from settings
             fallback_response = get_ai_setting(db, f"ai_fallback_response_{user_language}", 
-                                             default_value="I'm here to help with your questions." if user_language == "english" 
-                                             else "أنا هنا لمساعدتك في أسئلتك.")
+                                             default_value="Service unavailable" if user_language == "english" 
+                                             else "الخدمة غير متاحة")
             return {
                 "response": fallback_response,
                 "candidates": [],
@@ -1100,32 +1126,16 @@ Description: {job.description[:200] if job.description else 'Not specified'}...
     # Get language-specific AI instructions from database (customizable by admin)
     if user_language == "arabic":
         setting_key = "ai_instructions_arabic"
-        default_instructions = """أنت مساعد ذكي ودود متخصص في الموارد البشرية. اسمك "مساعد ATS الذكي".
-
-هدفك مساعدة المسؤولين عن التوظيف بطريقة طبيعية وودودة.
-
-تعليمات المحادثة:
-- أجب بطريقة طبيعية ودودة كما لو كنت تتحدث مع صديق مهني
-- إذا سُئلت عن وظيفتك، أجب: "أنا مساعد ذكي متخصص في الموارد البشرية أساعدك في العثور على أفضل المرشحين وتحليل ملفاتهم الشخصية"
-- إذا لم تكن هناك وظائف محددة، اطلب توضيحاً بلطف عن نوع الوظيفة المطلوبة
-- استخدم الأسماء والمعلومات الدقيقة من قاعدة البيانات فقط
-- لا تخترع معلومات غير موجودة
-- إذا لم تجد مرشحين مناسبين، اعتذر بلطف واطلب توضيح المتطلبات
-- كن مختصراً ومفيداً في نفس الوقت"""
+        default_instructions = get_ai_setting(db, setting_key, 
+            default_value="مساعد ذكي")
     else:
         setting_key = "ai_instructions_english"
-        default_instructions = """You are a friendly, intelligent HR assistant. Your name is "ATS Smart Assistant".
-
-Your goal is to help recruiters in a natural, friendly way.
-
-Conversation Guidelines:
-- Respond naturally and friendly as if talking to a professional colleague
-- If asked about your role, say: "I'm an AI HR assistant helping you find the best candidates and analyze their profiles"
-- If no specific jobs are mentioned, politely ask for clarification about the desired position
-- Only use exact names and information from the database
-- Never invent information that doesn't exist
-- If no suitable candidates are found, politely apologize and ask for clarification of requirements
-- Be concise but helpful"""
+        default_instructions = get_ai_setting(db, setting_key,
+            default_value="AI assistant")
+    
+    # Get HR-specific context instructions
+    hr_context_instructions = get_ai_setting(db, "ai_hr_context_instructions",
+        default_value="HR assistant")
     
     custom_instructions = get_ai_setting(
         db,
@@ -1168,6 +1178,8 @@ CURRENT DATABASE CONTEXT:
 {conversation_context}
 Current Question: {query}
 
+{hr_context_instructions}
+
 {evaluation_format.get(user_language, evaluation_format["english"])}
 
 CANDIDATE PROFILES:
@@ -1182,7 +1194,7 @@ IMPORTANT:
 - If no specific job is mentioned, ask for clarification about the position requirements.
 - If the user asks follow-up questions, refer to the previous conversation context.
 - Maintain continuity with previous responses in the conversation.
-- {"أجب باللغة العربية فقط" if user_language == "arabic" else "Respond in English only"}
+- {get_ai_setting(db, f"ai_language_enforcement_{user_language}", default_value="Use appropriate language")}
 - Provide a structured, professional analysis based on the candidate data and conversation history above."""
 
     # Call AI to generate response

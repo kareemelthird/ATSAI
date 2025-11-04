@@ -336,3 +336,18 @@ class MatchResult(BaseModel):
     match_score: float
     matching_skills: List[str]
     reason: str
+
+
+# Custom Instructions Schemas
+class CustomInstructionsUpdate(BaseModel):
+    """Update custom AI instructions for a user"""
+    custom_chat_instructions: Optional[str] = None
+    custom_cv_analysis_instructions: Optional[str] = None
+    use_custom_instructions: Optional[bool] = None
+
+
+class CustomInstructionsResponse(BaseModel):
+    """Response with user's custom AI instructions"""
+    custom_chat_instructions: Optional[str] = None
+    custom_cv_analysis_instructions: Optional[str] = None
+    use_custom_instructions: bool = False

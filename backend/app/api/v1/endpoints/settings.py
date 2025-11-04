@@ -234,17 +234,33 @@ def get_all_settings_definitions() -> List[Dict[str, Any]]:
         },
         {
             "category": "ai_provider",
-            "key": "chat_system_instructions",
-            "label": "Chat System Instructions",
-            "description": "System instructions for AI chat interactions and responses",
+            "key": "ai_chat_instructions",
+            "label": "AI Chat Instructions",
+            "description": "Instructions for general AI chat responses and behavior",
             "data_type": "text",
             "requires_restart": False
         },
         {
             "category": "ai_provider",
-            "key": "ai_chat_instructions",
-            "label": "AI Chat Instructions",
-            "description": "Instructions for general AI chat responses and behavior",
+            "key": "ai_instructions_arabic",
+            "label": "AI Instructions (Arabic)",
+            "description": "Base AI instructions for Arabic language responses",
+            "data_type": "text",
+            "requires_restart": False
+        },
+        {
+            "category": "ai_provider",
+            "key": "ai_instructions_english",
+            "label": "AI Instructions (English)",
+            "description": "Base AI instructions for English language responses",
+            "data_type": "text",
+            "requires_restart": False
+        },
+        {
+            "category": "ai_provider",
+            "key": "ai_hr_context_instructions",
+            "label": "AI HR Context Instructions",
+            "description": "HR and recruitment context instructions for candidate-related queries",
             "data_type": "text",
             "requires_restart": False
         },
@@ -278,6 +294,44 @@ def get_all_settings_definitions() -> List[Dict[str, Any]]:
             "label": "AI Fallback Response (English)",
             "description": "Default response when AI service is unavailable (English)",
             "data_type": "text",
+            "requires_restart": False
+        },
+        
+        # Usage Limits Settings
+        {
+            "category": "application",
+            "key": "MAX_MESSAGES_PER_USER_DAILY",
+            "label": "Max Messages Per User Daily",
+            "description": "Maximum number of AI chat messages per user per day",
+            "data_type": "number",
+            "is_public": True,
+            "requires_restart": False
+        },
+        {
+            "category": "application", 
+            "key": "MAX_UPLOAD_SIZE_MB",
+            "label": "Max Upload Size (MB)",
+            "description": "Maximum file upload size in megabytes",
+            "data_type": "number",
+            "is_public": True,
+            "requires_restart": False
+        },
+        {
+            "category": "application",
+            "key": "MAX_UPLOADS_PER_USER_DAILY",
+            "label": "Max Uploads Per User Daily", 
+            "description": "Maximum number of CV uploads per user per day",
+            "data_type": "number",
+            "is_public": True,
+            "requires_restart": False
+        },
+        {
+            "category": "application",
+            "key": "ALLOW_USER_CUSTOM_INSTRUCTIONS",
+            "label": "Allow User Custom Instructions",
+            "description": "Allow users to set custom AI instructions in their profile",
+            "data_type": "boolean",
+            "is_public": True,
             "requires_restart": False
         },
         
@@ -374,6 +428,53 @@ async def get_all_settings(
         # Don't mask DATABASE_URL - show actual value for admin
         # Only mask API keys
         if setting_def.get("is_encrypted") and value and "API_KEY" in key:
+            value = "***ENCRYPTED***"
+        
+        result.append(SettingResponse(
+            category=setting_def["category"],
+            key=key,
+            value=value,
+            label=setting_def["label"],
+            description=setting_def["description"],
+            data_type=setting_def["data_type"],
+            is_encrypted=setting_def.get("is_encrypted", False),
+            is_public=setting_def.get("is_public", False),
+            requires_restart=setting_def.get("requires_restart", False),
+            provider=setting_def.get("provider")
+        ))
+    
+    return result
+
+
+@router.get("/public", response_model=List[SettingResponse])
+async def get_public_settings(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get public settings that all users can read
+    Returns only settings marked as is_public=True
+    """
+    # Get saved settings from database
+    db_settings = db.query(SystemSettings).all()
+    db_settings_dict = {setting.key: setting.value for setting in db_settings}
+    
+    # Get environment variables as fallback
+    env_vars = read_env_file()
+    settings_defs = get_all_settings_definitions()
+    
+    result = []
+    for setting_def in settings_defs:
+        # Only include public settings
+        if not setting_def.get("is_public", False):
+            continue
+            
+        key = setting_def["key"]
+        # Prefer database value, fallback to env, then empty string
+        value = db_settings_dict.get(key) or env_vars.get(key, "")
+        
+        # Never expose encrypted values to non-admin users
+        if setting_def.get("is_encrypted") and value:
             value = "***ENCRYPTED***"
         
         result.append(SettingResponse(

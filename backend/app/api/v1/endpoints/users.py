@@ -64,6 +64,18 @@ class ChangeRoleRequest(BaseModel):
     role: str
 
 
+class CustomInstructionsUpdate(BaseModel):
+    custom_chat_instructions: Optional[str] = None
+    custom_cv_analysis_instructions: Optional[str] = None
+    use_custom_instructions: Optional[bool] = None
+
+
+class CustomInstructionsResponse(BaseModel):
+    custom_chat_instructions: Optional[str]
+    custom_cv_analysis_instructions: Optional[str] 
+    use_custom_instructions: bool
+
+
 # Helper function to check admin access
 def require_admin(current_user: User) -> User:
     """Check if user is admin or super admin"""
@@ -581,4 +593,57 @@ async def admin_reset_user_password(
     )
     
     return {"message": f"Password reset successfully for user {user.email}"}
+
+
+@router.get("/me/custom-instructions", response_model=CustomInstructionsResponse)
+async def get_my_custom_instructions(
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get current user's custom AI instructions
+    """
+    return CustomInstructionsResponse(
+        custom_chat_instructions=current_user.custom_chat_instructions,
+        custom_cv_analysis_instructions=current_user.custom_cv_analysis_instructions,
+        use_custom_instructions=current_user.use_custom_instructions or False
+    )
+
+
+@router.put("/me/custom-instructions", response_model=CustomInstructionsResponse)
+async def update_my_custom_instructions(
+    instructions: CustomInstructionsUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Update current user's custom AI instructions
+    """
+    # Check if custom instructions are allowed by admin
+    from app.services.ai_service import get_ai_setting
+    allow_custom = get_ai_setting(db, "ALLOW_USER_CUSTOM_INSTRUCTIONS", "true")
+    
+    if allow_custom.lower() not in ["true", "1", "yes"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Custom instructions are disabled by administrator"
+        )
+    
+    # Update user's custom instructions
+    if instructions.custom_chat_instructions is not None:
+        current_user.custom_chat_instructions = instructions.custom_chat_instructions
+    
+    if instructions.custom_cv_analysis_instructions is not None:
+        current_user.custom_cv_analysis_instructions = instructions.custom_cv_analysis_instructions
+    
+    if instructions.use_custom_instructions is not None:
+        current_user.use_custom_instructions = instructions.use_custom_instructions
+    
+    current_user.updated_at = datetime.utcnow()
+    db.commit()
+    
+    return CustomInstructionsResponse(
+        custom_chat_instructions=current_user.custom_chat_instructions,
+        custom_cv_analysis_instructions=current_user.custom_cv_analysis_instructions,
+        use_custom_instructions=current_user.use_custom_instructions or False
+    )
 

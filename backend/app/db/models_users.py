@@ -79,6 +79,11 @@ class User(Base):
     personal_groq_api_key = Column(String(255))  # User's personal Groq API key
     use_personal_ai_key = Column(Boolean, default=False)  # Whether to use personal key instead of system default
     
+    # Custom AI Instructions per User
+    custom_chat_instructions = Column(Text)  # User's custom instructions for AI chat
+    custom_cv_analysis_instructions = Column(Text)  # User's custom instructions for CV analysis
+    use_custom_instructions = Column(Boolean, default=False)  # Whether to use custom instructions
+    
     # Metadata
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

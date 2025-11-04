@@ -8,6 +8,12 @@ interface PersonalAISettings {
   key_preview?: string;
 }
 
+interface CustomInstructions {
+  custom_chat_instructions?: string;
+  custom_cv_analysis_instructions?: string;
+  use_custom_instructions: boolean;
+}
+
 interface GuideStep {
   number: number;
   title: string;
@@ -47,6 +53,12 @@ export default function Profile() {
   const [passwordError, setPasswordError] = useState('');
   const [changingPassword, setChangingPassword] = useState(false);
 
+  // Custom instructions state
+  const [customChatInstructions, setCustomChatInstructions] = useState('');
+  const [customCvInstructions, setCustomCvInstructions] = useState('');
+  const [useCustomInstructions, setUseCustomInstructions] = useState(false);
+  const [savingCustomInstructions, setSavingCustomInstructions] = useState(false);
+
   // Fetch current AI settings
   const { data: settings, isLoading } = useQuery<PersonalAISettings>({
     queryKey: ['profile-ai-settings'],
@@ -65,12 +77,30 @@ export default function Profile() {
     }
   });
 
+  // Fetch custom instructions
+  const { data: customInstructions } = useQuery<CustomInstructions>({
+    queryKey: ['custom-instructions'],
+    queryFn: async () => {
+      const response = await api.get('/users/me/custom-instructions');
+      return response.data;
+    }
+  });
+
   // Update settings when loaded
   useEffect(() => {
     if (settings) {
       setUsePersonalKey(settings.use_personal_ai_key);
     }
   }, [settings]);
+
+  // Update custom instructions when loaded
+  useEffect(() => {
+    if (customInstructions) {
+      setCustomChatInstructions(customInstructions.custom_chat_instructions || '');
+      setCustomCvInstructions(customInstructions.custom_cv_analysis_instructions || '');
+      setUseCustomInstructions(customInstructions.use_custom_instructions);
+    }
+  }, [customInstructions]);
 
   // Update AI settings mutation
   const updateSettings = useMutation({
@@ -82,6 +112,21 @@ export default function Profile() {
       queryClient.invalidateQueries({ queryKey: ['profile-ai-settings'] });
       setApiKey(''); // Clear input after save
       alert('✅ AI settings updated successfully!');
+    },
+    onError: (error: any) => {
+      alert(`❌ Error: ${error.response?.data?.detail || error.message}`);
+    }
+  });
+
+  // Update custom instructions mutation
+  const updateCustomInstructions = useMutation({
+    mutationFn: async (data: CustomInstructions) => {
+      const response = await api.put('/users/me/custom-instructions', data);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['custom-instructions'] });
+      alert('✅ Custom instructions updated successfully!');
     },
     onError: (error: any) => {
       alert(`❌ Error: ${error.response?.data?.detail || error.message}`);
@@ -146,6 +191,16 @@ export default function Profile() {
     if (confirm('Are you sure you want to remove your personal API key?')) {
       deleteKey.mutate();
     }
+  };
+
+  const handleSaveCustomInstructions = () => {
+    setSavingCustomInstructions(true);
+    updateCustomInstructions.mutate({
+      custom_chat_instructions: customChatInstructions.trim() || undefined,
+      custom_cv_analysis_instructions: customCvInstructions.trim() || undefined,
+      use_custom_instructions: useCustomInstructions
+    });
+    setSavingCustomInstructions(false);
   };
 
   const handleChangePassword = async () => {
@@ -444,6 +499,83 @@ export default function Profile() {
             className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-green-400 disabled:cursor-not-allowed font-medium"
           >
             {changingPassword ? '⏳ Changing Password...' : '🔒 Change Password'}
+          </button>
+        </div>
+      </div>
+
+      {/* Custom AI Instructions Section */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <span className="text-2xl">🤖</span>
+          <h2 className="text-xl font-semibold text-gray-900">Custom AI Instructions</h2>
+        </div>
+        
+        <p className="text-gray-600 mb-6">
+          Customize how the AI assistant responds to your chat messages and analyzes CVs. 
+          These personal instructions will override the system defaults when enabled.
+        </p>
+
+        <div className="space-y-6">
+          {/* Enable Custom Instructions Toggle */}
+          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+            <div>
+              <h3 className="font-medium text-gray-900">Enable Custom Instructions</h3>
+              <p className="text-sm text-gray-600">Use your personal AI instructions instead of system defaults</p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={useCustomInstructions}
+                onChange={(e) => setUseCustomInstructions(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+            </label>
+          </div>
+
+          {/* Chat Instructions */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              💬 Custom Chat Instructions
+            </label>
+            <textarea
+              value={customChatInstructions}
+              onChange={(e) => setCustomChatInstructions(e.target.value)}
+              rows={4}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-vertical"
+              placeholder="Enter custom instructions for AI chat responses (e.g., 'Always be concise and professional', 'Focus on technical skills when discussing candidates')"
+              disabled={!useCustomInstructions}
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              These instructions will guide how the AI responds to your chat messages
+            </p>
+          </div>
+
+          {/* CV Analysis Instructions */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              📄 Custom CV Analysis Instructions
+            </label>
+            <textarea
+              value={customCvInstructions}
+              onChange={(e) => setCustomCvInstructions(e.target.value)}
+              rows={4}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-vertical"
+              placeholder="Enter custom instructions for CV analysis (e.g., 'Pay special attention to leadership experience', 'Prioritize certifications and education')"
+              disabled={!useCustomInstructions}
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              These instructions will guide how the AI analyzes and evaluates CVs
+            </p>
+          </div>
+
+          {/* Save Button */}
+          <button
+            onClick={handleSaveCustomInstructions}
+            disabled={savingCustomInstructions || updateCustomInstructions.isPending}
+            className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed font-medium transition-colors"
+          >
+            {savingCustomInstructions || updateCustomInstructions.isPending ? '⏳ Saving...' : '💾 Save Custom Instructions'}
           </button>
         </div>
       </div>
