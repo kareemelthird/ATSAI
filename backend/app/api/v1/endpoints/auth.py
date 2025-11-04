@@ -217,7 +217,7 @@ async def register(
 ):
     """
     Register a new user account.
-    By default, creates a VIEWER role account.
+    By default, creates a RECRUITER role account (since database only allows admin, hr_manager, recruiter roles).
     """
     # Check if email already exists
     if db.query(User).filter(User.email == user_data.email).first():
@@ -240,7 +240,7 @@ async def register(
             detail="Password must be at least 8 characters long"
         )
     
-    # Create new user with VIEWER role by default
+    # Create new user with RECRUITER role by default (since viewer is not allowed)
     new_user = User(
         id=uuid.uuid4(),
         email=user_data.email,
@@ -249,7 +249,7 @@ async def register(
         first_name=user_data.first_name,
         last_name=user_data.last_name,
         phone=user_data.phone,
-        role="viewer",      # Default role as string
+        role="recruiter",   # Use valid role: admin, hr_manager, or recruiter
         status="active",    # Status as string
         is_email_verified=False,  # Would need email verification flow
         mfa_enabled=False,
