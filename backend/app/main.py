@@ -48,4 +48,35 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy"}
+    """Enhanced health check with database status"""
+    try:
+        # Test database connection
+        from sqlalchemy import text
+        from app.db.database import get_db
+        
+        # Get database session
+        db = next(get_db())
+        
+        # Test basic query
+        result = db.execute(text("SELECT 1 as test")).fetchone()
+        db.close()
+        
+        if result and result[0] == 1:
+            return {
+                "status": "healthy",
+                "database_status": "connected",
+                "database_info": "Database connection successful"
+            }
+        else:
+            return {
+                "status": "error", 
+                "database_status": "failed",
+                "message": "Database query failed"
+            }
+            
+    except Exception as e:
+        return {
+            "status": "error",
+            "database_status": "failed", 
+            "message": f"Database connection error: {str(e)}"
+        }

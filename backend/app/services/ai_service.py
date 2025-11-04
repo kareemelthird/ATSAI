@@ -3,7 +3,6 @@ from typing import Dict, Any, List
 from app.core.config import settings
 from sqlalchemy.orm import Session
 from app.db import models
-from app.db.models_system_settings import SystemAISetting
 import json
 import re
 from datetime import datetime
@@ -240,17 +239,19 @@ def get_ai_setting(db: Session, setting_key: str, default_value: str = None) -> 
     Get AI setting from database, return default if not found
     """
     try:
-        setting = db.query(SystemAISetting).filter(
-            SystemAISetting.setting_key == setting_key,
-            SystemAISetting.is_active == True
+        # Import here to avoid circular imports
+        from app.db.models_users import SystemSettings
+        
+        setting = db.query(SystemSettings).filter(
+            SystemSettings.key == setting_key
         ).first()
         
-        if setting:
-            return setting.setting_value
-        return default_value
+        if setting and setting.value:
+            return setting.value
+        return default_value or ""
     except Exception as e:
         print(f"⚠️ Error fetching AI setting '{setting_key}': {e}")
-        return default_value
+        return default_value or ""
 
 
 def safe_extract_string(data: dict, key: str, default: str = "") -> str:
@@ -1161,18 +1162,6 @@ CURRENT DATABASE CONTEXT:
                                 default_value="قيّم المرشحين بناءً على مؤهلاتهم ومدى ملاءمتهم للوظيفة المطلوبة."),
         "english": get_ai_setting(db, "ai_evaluation_format_english", 
                                  default_value="Evaluate candidates based on their qualifications and job fit.")
-    }
-- State the specific job position mentioned in the query
-- Rate each candidate with a score out of 10
-- List specific strengths and weaknesses for each candidate
-- Rank candidates by priority/fit
-- Provide a clear, justified recommendation
-
-Example evaluation format:
-Candidate: [Name] - Score: [X/10]
-Strengths: [specific list]
-Weaknesses: [specific list]
-Job Match: [specific details]"""
     }
 
     user_prompt = f"""Answer this question about our candidates in a natural, helpful way:
