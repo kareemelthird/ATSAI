@@ -22,42 +22,92 @@ async def call_ai_api(prompt: str, system_message: str = None, user_api_key: str
         # Check if this is a resume analysis request (has structured JSON format request)
         if ("```json" in prompt.lower() or 
             ("resume" in prompt.lower() and "extract" in prompt.lower()) or
-            ("analyze the resume data" in prompt.lower())):
-            return """```json
-{
+            ("analyze the resume data" in prompt.lower()) or
+            ("analyze this resume" in prompt.lower()) or
+            ("structured information" in prompt.lower())):
+            
+            # Try to extract basic info from the actual CV text for better mock response
+            extracted_name = "John"
+            extracted_lastname = "Smith"
+            extracted_email = "john.smith@email.com"
+            extracted_phone = "+1-555-123-4567"
+            
+            # Simple extraction from prompt text
+            lines = prompt.split('\n')
+            name_found = False
+            
+            for i, line in enumerate(lines):
+                line = line.strip()
+                
+                # Look for name (only if not found yet)
+                if not name_found and line and len(line) < 50:  # Likely name line
+                    words = line.split()
+                    if len(words) >= 2 and len(words) <= 4:
+                        # Check if it looks like a name (not email, phone, title)
+                        if not any(char in line.lower() for char in ['@', '.com', '+', '(', ')', 'email:', 'phone:', 'developer', 'engineer', 'manager']):
+                            if not line.lower().startswith(('analyze', 'extract', 'return')):
+                                extracted_name = words[0]
+                                extracted_lastname = ' '.join(words[1:]) if len(words) > 1 else ""
+                                name_found = True
+                
+                # Look for email
+                if '@' in line and '.com' in line:
+                    email_match = line.split()
+                    for word in email_match:
+                        if '@' in word and '.com' in word:
+                            extracted_email = word.strip(':').strip()
+                            break
+                
+                # Look for phone
+                if any(char in line for char in ['+', '(', ')', '-']) and any(char.isdigit() for char in line):
+                    if 'phone' in line.lower() or '+' in line:
+                        phone_parts = line.split()
+                        for part in phone_parts:
+                            if any(char.isdigit() for char in part) and len(part) > 5:
+                                extracted_phone = part.strip(':').strip()
+                                break
+            
+            return f"""```json
+{{
+  "first_name": "{extracted_name}",
+  "last_name": "{extracted_lastname}",
+  "email": "{extracted_email}",
+  "phone": "{extracted_phone}",
+  "location": "Cairo, Egypt",
+  "linkedin": "linkedin.com/in/profile",
+  "summary": "Experienced developer with expertise in modern technologies and web development.",
+  "career_level": "Mid",
+  "years_of_experience": 3,
   "skills": [
-    {"name": "Python", "category": "technical"},
-    {"name": "JavaScript", "category": "technical"},
-    {"name": "React", "category": "technical"},
-    {"name": "PostgreSQL", "category": "technical"},
-    {"name": "Communication", "category": "soft"}
+    {{"name": "SharePoint Online", "category": "technical", "level": "Advanced"}},
+    {{"name": "Power Platform", "category": "technical", "level": "Intermediate"}},
+    {{"name": "Power Automate", "category": "technical", "level": "Advanced"}},
+    {{"name": "JavaScript", "category": "technical", "level": "Intermediate"}},
+    {{"name": "C#", "category": "technical", "level": "Intermediate"}},
+    {{"name": "Communication", "category": "soft", "level": "Expert"}}
   ],
   "work_experience": [
-    {
-      "company": "TechCorp Solutions",
-      "title": "Senior Software Developer",
-      "start_date": "2020-01",
-      "end_date": "2024-12",
-      "description": "Led development of full-stack web applications using React and FastAPI"
-    },
-    {
-      "company": "StartupXYZ",
-      "title": "Junior Developer",
-      "start_date": "2018-06",
-      "end_date": "2019-12",
-      "description": "Developed and maintained web applications"
-    }
+    {{
+      "company": "Tech Solutions Ltd",
+      "title": "SharePoint Developer",
+      "start_date": "2023-01",
+      "end_date": "Present",
+      "description": "• Developed SharePoint Online solutions\\n• Built Power Platform applications\\n• Implemented automated workflows",
+      "is_current": true,
+      "location": "Cairo, Egypt"
+    }}
   ],
   "education": [
-    {
-      "institution": "Tech University",
+    {{
+      "institution": "Cairo University",
       "degree": "Bachelor of Science",
       "field": "Computer Science",
-      "graduation_date": "2018-05"
-    }
-  ],
-  "summary": "Experienced full-stack developer with 6+ years of experience in web development, specializing in Python, React, and PostgreSQL."
-}
+      "start_date": "2018",
+      "graduation_date": "2022-06",
+      "grade": "Very Good"
+    }}
+  ]
+}}
 ```"""
         else:
             # For chat queries, provide conversational responses
@@ -527,9 +577,33 @@ Return the analysis as JSON."""
         
         # Create candidate if candidate_id is None (new resume upload)
         if candidate_id is None:
-            # Extract name from analysis with safe extraction
-            first_name = safe_extract_string(analysis, "first_name", "Unknown")
+            # Extract name from analysis with safe extraction - try multiple approaches
+            first_name = safe_extract_string(analysis, "first_name", "")
             last_name = safe_extract_string(analysis, "last_name", "")
+            
+            # If first_name is empty, try to extract from the original text
+            if not first_name or first_name == "Unknown":
+                # Try to extract name from the original CV text
+                lines = text.split('\n')
+                for line in lines[:10]:  # Check first 10 lines
+                    line = line.strip()
+                    if line and len(line.split()) <= 4 and len(line) > 3:
+                        # Looks like a name line
+                        words = line.split()
+                        if len(words) >= 2:
+                            potential_first = words[0]
+                            potential_last = ' '.join(words[1:])
+                            # Check if it looks like a name (not email, phone, etc.)
+                            if not any(char in potential_first.lower() for char in ['@', '.com', '+', '(', ')']):
+                                first_name = potential_first
+                                last_name = potential_last
+                                print(f"📝 Extracted name from text: {first_name} {last_name}")
+                                break
+            
+            # Final fallback
+            if not first_name:
+                first_name = "Candidate"
+            
             raw_email = safe_extract_string(analysis, "email", f"temp_{datetime.utcnow().timestamp()}@temp.com")
             
             # Clean email address to handle multiple emails
