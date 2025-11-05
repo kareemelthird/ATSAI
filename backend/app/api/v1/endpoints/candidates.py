@@ -816,7 +816,7 @@ def download_candidate_resume(
             models.Resume.candidate_id == candidate_id,
             models.Resume.file_path.isnot(None),
             models.Resume.file_path != ''
-        ).order_by(models.Resume.upload_date.desc()).first()  # Changed to upload_date
+        ).order_by(models.Resume.upload_date.desc()).first()
         
         if not resume:
             raise HTTPException(
@@ -824,48 +824,81 @@ def download_candidate_resume(
                 detail="No resume found for this candidate"
             )
         
-        # Make sure file_path is absolute
+        # Handle different file path formats
         file_path = resume.file_path
+        possible_paths = []
         
-        # Convert relative path to absolute if needed
+        # Try different path combinations based on environment
         if not os.path.isabs(file_path):
             from pathlib import Path
             
-            # The uploads directory is at workspace root (C:\Users\karim.hassan\ATS\uploads)
-            # candidates.py → endpoints/ → v1/ → api/ → app/ → backend/ → ATS/
+            # Local development paths
             workspace_root = Path(__file__).parent.parent.parent.parent.parent.parent
-            
-            # Try workspace root first (where uploads actually is)
             workspace_path = workspace_root / file_path
-            
-            # Also try current working directory as fallback
             cwd_path = Path.cwd() / file_path
             
-            # Use whichever path exists
-            if workspace_path.exists():
-                file_path = str(workspace_path)
-            elif cwd_path.exists():
-                file_path = str(cwd_path)
+            # Production/Vercel paths (ephemeral storage)
+            vercel_tmp_path = Path("/tmp/uploads") / os.path.basename(file_path)
+            vercel_tmp_path2 = Path("/tmp") / os.path.basename(file_path)
+            
+            possible_paths = [
+                str(workspace_path),  # Local development
+                str(cwd_path),        # Current working directory
+                str(vercel_tmp_path), # Vercel tmp uploads
+                str(vercel_tmp_path2),# Vercel tmp root
+                file_path             # Original path
+            ]
+        else:
+            possible_paths = [file_path]
+        
+        # Find the first existing file
+        existing_file = None
+        for path in possible_paths:
+            normalized_path = os.path.normpath(path)
+            if os.path.exists(normalized_path):
+                existing_file = normalized_path
+                break
+        
+        # If file doesn't exist anywhere, check if we have extracted text
+        if not existing_file:
+            if resume.extracted_text:
+                # Create a temporary text file with the CV content
+                import tempfile
+                import io
+                
+                # Create in-memory text content
+                cv_content = f"""
+RESUME: {resume.original_filename}
+Uploaded: {resume.upload_date}
+Candidate ID: {candidate_id}
+
+EXTRACTED CONTENT:
+{resume.extracted_text}
+                """.strip()
+                
+                # Return as downloadable text file
+                from fastapi.responses import Response
+                
+                return Response(
+                    content=cv_content.encode('utf-8'),
+                    media_type="text/plain",
+                    headers={
+                        "Content-Disposition": f"attachment; filename=\"{resume.original_filename}.txt\""
+                    }
+                )
             else:
-                # If neither exists, use workspace path for error message (most likely location)
-                file_path = str(workspace_path)
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Resume file not found and no extracted text available. Original file: {resume.original_filename}"
+                )
         
-        # Normalize path (handles Windows backslashes)
-        file_path = os.path.normpath(file_path)
-        
-        # Check if file exists
-        if not os.path.exists(file_path):
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Resume file not found. Looking at: {file_path}"
-            )
-        
-        # Return file as download
+        # Return the found file
         return FileResponse(
-            path=file_path,
+            path=existing_file,
             media_type="application/pdf",
             filename=resume.original_filename
         )
+        
     except HTTPException:
         raise
     except Exception as e:

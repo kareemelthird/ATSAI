@@ -353,6 +353,45 @@ SELECT
     NOW()
 WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE key = 'ai_language_enforcement_english');
 
+-- Force Personal API Key Setting
+INSERT INTO system_settings (id, category, key, value, description, is_public, created_at, updated_at) 
+SELECT 
+    gen_random_uuid(), 
+    'ai', 
+    'require_personal_api_key', 
+    'true', 
+    'Force users to provide their own API key for AI chat functionality', 
+    false, 
+    NOW(), 
+    NOW()
+WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE key = 'require_personal_api_key');
+
+-- API Key Required Message Arabic
+INSERT INTO system_settings (id, category, key, value, description, is_public, created_at, updated_at) 
+SELECT 
+    gen_random_uuid(), 
+    'ai', 
+    'api_key_required_message_arabic', 
+    'للاستفادة من خدمة الذكاء الاصطناعي، يجب عليك إضافة مفتاح API الخاص بك في صفحة الملف الشخصي. يمكنك الحصول على مفتاح مجاني من Groq.com', 
+    'Message shown to Arabic users when personal API key is required', 
+    false, 
+    NOW(), 
+    NOW()
+WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE key = 'api_key_required_message_arabic');
+
+-- API Key Required Message English
+INSERT INTO system_settings (id, category, key, value, description, is_public, created_at, updated_at) 
+SELECT 
+    gen_random_uuid(), 
+    'ai', 
+    'api_key_required_message_english', 
+    'To use AI features, please add your personal API key in your Profile settings. You can get a free API key from Groq.com', 
+    'Message shown to English users when personal API key is required', 
+    false, 
+    NOW(), 
+    NOW()
+WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE key = 'api_key_required_message_english');
+
 -- Verify the migration worked
 SELECT 
     key, 

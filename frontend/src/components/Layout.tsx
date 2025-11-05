@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation } from 'react-router-dom'
-import { Users, Briefcase, FileText, MessageSquare, Upload, LayoutDashboard, LogOut, User, Settings, Shield } from 'lucide-react'
+import { Users, Briefcase, FileText, MessageSquare, Upload, LayoutDashboard, LogOut, User, Settings, Shield, Menu, X } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useState, useEffect } from 'react'
 import axios from 'axios'
@@ -19,6 +19,7 @@ const Layout = () => {
   const { user, isAdmin, logout } = useAuth()
   const [projectName, setProjectName] = useState('ATS/AI')
   const [projectSubtitle, setProjectSubtitle] = useState('Applicant Tracking System')
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
   useEffect(() => {
     // Fetch project info from backend
@@ -75,10 +76,44 @@ const Layout = () => {
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
+      {/* Mobile header */}
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-lg font-bold text-primary-600 dark:text-primary-400">
+              {projectName}
+            </h1>
+            {projectSubtitle && (
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {projectSubtitle}
+              </p>
+            )}
+          </div>
+          <button
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            className="p-2 rounded-md text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+          >
+            {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </button>
+        </div>
+      </div>
+
+      {/* Mobile overlay */}
+      {isMobileMenuOpen && (
+        <div 
+          className="lg:hidden fixed inset-0 z-40 bg-black bg-opacity-50"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="fixed top-0 left-0 z-40 w-64 h-screen bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700">
+      <aside className={`
+        fixed top-0 left-0 z-40 h-screen bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transition-transform duration-300
+        lg:translate-x-0 lg:w-64
+        w-64 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+      `}>
         <div className="h-full px-3 py-4 overflow-y-auto flex flex-col">
-          <div className="mb-8">
+          <div className="mb-8 lg:block hidden">
             <h1 className="text-2xl font-bold text-primary-600 dark:text-primary-400">
               {projectName}
             </h1>
@@ -87,6 +122,28 @@ const Layout = () => {
                 {projectSubtitle}
               </p>
             )}
+          </div>
+          
+          {/* Mobile header in sidebar */}
+          <div className="mb-8 lg:hidden block pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-xl font-bold text-primary-600 dark:text-primary-400">
+                  {projectName}
+                </h1>
+                {projectSubtitle && (
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    {projectSubtitle}
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="p-2 rounded-md text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
           </div>
           
           <ul className="space-y-2 flex-1">
@@ -99,6 +156,7 @@ const Layout = () => {
                 <li key={item.path}>
                   <Link
                     to={item.path}
+                    onClick={() => setIsMobileMenuOpen(false)} // Close menu on mobile when item is clicked
                     className={`flex items-center p-3 rounded-lg transition-colors ${
                       isActive
                         ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300'
@@ -128,9 +186,10 @@ const Layout = () => {
                     <li key={item.path}>
                       <Link
                         to={item.path}
+                        onClick={() => setIsMobileMenuOpen(false)} // Close menu on mobile when item is clicked
                         className={`flex items-center p-3 rounded-lg transition-colors ${
                           isActive
-                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
+                            ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300'
                             : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
                         }`}
                       >
@@ -172,8 +231,9 @@ const Layout = () => {
       </aside>
 
       {/* Main Content */}
-      <div className="ml-64 h-screen flex flex-col">
-        <main className="flex-1 p-8 overflow-y-auto">
+      <div className="lg:ml-64 ml-0 h-screen flex flex-col">
+        {/* Add top padding on mobile to account for fixed header */}
+        <main className="flex-1 p-4 lg:p-8 pt-20 lg:pt-8 overflow-y-auto">
           <Outlet />
         </main>
       </div>

@@ -189,6 +189,37 @@ async def call_ai_api(prompt: str, system_message: str = None, user_api_key: str
                     default_value="HR assistant") if db else "Assistant"
                 return default_response
     
+    # Check if personal API key is required
+    require_personal_key = False
+    if db:
+        require_setting = get_ai_setting(db, "require_personal_api_key", "false")
+        require_personal_key = require_setting.lower() == "true"
+    
+    # If personal API key is required but not provided, return appropriate message
+    if require_personal_key and not user_api_key:
+        # Detect language for appropriate error message
+        def detect_language(text: str) -> str:
+            arabic_chars = sum(1 for char in text if '\u0600' <= char <= '\u06FF')
+            english_chars = sum(1 for char in text if char.isascii() and char.isalpha())
+            total_chars = arabic_chars + english_chars
+            
+            if total_chars == 0:
+                return "english"
+            
+            arabic_ratio = arabic_chars / total_chars
+            return "arabic" if arabic_ratio > 0.3 else "english"
+        
+        user_language = detect_language(prompt)
+        
+        if user_language == "arabic":
+            error_message = get_ai_setting(db, "api_key_required_message_arabic", 
+                "للاستفادة من خدمة الذكاء الاصطناعي، يجب عليك إضافة مفتاح API الخاص بك في صفحة الملف الشخصي.")
+        else:
+            error_message = get_ai_setting(db, "api_key_required_message_english", 
+                "To use AI features, please add your personal API key in your Profile settings.")
+        
+        raise ValueError(error_message)
+    
     # Use user's personal API key if provided
     if user_api_key:
         api_url = settings.GROQ_API_URL

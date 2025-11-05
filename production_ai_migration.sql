@@ -2,8 +2,24 @@
 -- Add new AI configuration settings to production database
 -- Run this on your Vercel PostgreSQL database
 
-INSERT INTO system_settings (id, category, key, value, description, is_public, created_at, updated_at) VALUES
-(gen_random_uuid(), 'ai', 'ai_instructions_arabic', 'أنت مساعد ذكي متخصص في الموارد البشرية والتوظيف. اسمك "مساعد ATS الذكي".
+-- First, add unique constraint on key column if it doesn't exist
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'system_settings_key_unique'
+    ) THEN
+        ALTER TABLE system_settings ADD CONSTRAINT system_settings_key_unique UNIQUE (key);
+    END IF;
+END $$;
+
+-- Insert AI settings with proper conflict handling
+INSERT INTO system_settings (id, category, key, value, description, is_public, created_at, updated_at) 
+SELECT 
+    gen_random_uuid(), 
+    'ai', 
+    'ai_instructions_arabic', 
+    'أنت مساعد ذكي متخصص في الموارد البشرية والتوظيف. اسمك "مساعد ATS الذكي".
 
 هدفك مساعدة المسؤولين عن التوظيف بطريقة طبيعية وودودة.
 
@@ -16,8 +32,14 @@ INSERT INTO system_settings (id, category, key, value, description, is_public, c
 - استخدم الأسماء والمعلومات الدقيقة من قاعدة البيانات فقط
 - لا تخترع معلومات غير موجودة
 - إذا لم تجد مرشحين مناسبين، اعتذر بلطف واطلب توضيح المتطلبات
-- كن مختصراً ومفيداً في نفس الوقت', 'Base AI instructions for Arabic language responses', false, NOW(), NOW())
-ON CONFLICT (key) DO NOTHING;
+- كن مختصراً ومفيداً في نفس الوقت', 
+    'Base AI instructions for Arabic language responses', 
+    false, 
+    NOW(), 
+    NOW()
+WHERE NOT EXISTS (
+    SELECT 1 FROM system_settings WHERE key = 'ai_instructions_arabic'
+);
 
 INSERT INTO system_settings (id, category, key, value, description, is_public, created_at, updated_at) VALUES
 (gen_random_uuid(), 'ai', 'ai_instructions_english', 'You are a friendly, intelligent HR assistant. Your name is "ATS Smart Assistant".
