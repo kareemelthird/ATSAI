@@ -181,8 +181,10 @@ async def call_ai_api(prompt: str, system_message: str = None, user_api_key: str
                         if jobs:
                             response += f"\nالوظائف المتاحة ({len(jobs)}):\n"
                             for i, job in enumerate(jobs[:3], 1):
-                                response += f"{i}. {job}\n"
-                            response += "\nيمكنني تقييم المرشحين لأي من هذه الوظائف."
+                                response += f"• {job}\n"
+                            if len(jobs) > 3:
+                                response += f"... و {len(jobs) - 3} وظائف أخرى\n"
+                            response += "\nيمكنني تقييم المرشحين لأي من هذه الوظائف والتوصية بأنسب المرشحين لكل منصب."
                         else:
                             response += "\nملاحظة: لا توجد وظائف مفتوحة حالياً في النظام."
                             
@@ -199,8 +201,10 @@ async def call_ai_api(prompt: str, system_message: str = None, user_api_key: str
                         if jobs:
                             response += f"\nAvailable Positions ({len(jobs)}):\n"
                             for i, job in enumerate(jobs[:3], 1):
-                                response += f"{i}. {job}\n"
-                            response += "\nI can evaluate candidates for any of these positions."
+                                response += f"• {job}\n"
+                            if len(jobs) > 3:
+                                response += f"... and {len(jobs) - 3} more positions\n"
+                            response += "\nI can evaluate candidates for any of these positions and recommend the best fit for each role."
                         else:
                             response += "\nNote: No active job openings are currently available in the system."
                             
@@ -987,6 +991,12 @@ async def chat_with_database(query: str, db: Session, current_user = None, conve
     Supports conversation history for context-aware responses
     Includes candidates, jobs, and applications context
     """
+    # Log user activity for audit trail
+    user_identifier = "anonymous"
+    if current_user:
+        user_identifier = getattr(current_user, 'email', getattr(current_user, 'id', 'unknown'))
+        print(f"👤 Chat request from user: {user_identifier}")
+    
     # Get user's personal API key if configured
     user_api_key = None
     if current_user and hasattr(current_user, 'use_personal_ai_key') and current_user.use_personal_ai_key:
