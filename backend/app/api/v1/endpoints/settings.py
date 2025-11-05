@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
-from app.core.auth import get_current_user
+from app.core.auth import get_current_user, require_admin, require_settings_edit, require_any_user
 from app.db.database import get_db
 from app.db.models_users import User, AuditLog, SystemSettings
 from app.core.config import settings
@@ -432,11 +432,11 @@ def get_all_settings_definitions() -> List[Dict[str, Any]]:
 @router.get("/", response_model=List[SettingResponse])
 async def get_all_settings(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin)
+    current_user: User = Depends(require_any_user)
 ):
     """
     Get all system settings
-    Admin only - Now reads from database first, then .env as fallback
+    All users can view, but sensitive values are masked for non-admins
     """
     # Get saved settings from database
     db_settings = db.query(SystemSettings).all()
@@ -452,10 +452,13 @@ async def get_all_settings(
         # Prefer database value, fallback to env, then empty string
         value = db_settings_dict.get(key) or env_vars.get(key, "")
         
-        # Don't mask DATABASE_URL - show actual value for admin
-        # Only mask API keys
-        if setting_def.get("is_encrypted") and value and "API_KEY" in key:
-            value = "***ENCRYPTED***"
+        # Mask sensitive values for non-admin users
+        is_admin = current_user.role in ["super_admin", "admin"]
+        if setting_def.get("is_encrypted") and value:
+            if not is_admin:
+                value = "***PROTECTED***"
+            elif "API_KEY" in key:
+                value = "***ENCRYPTED***"
         
         result.append(SettingResponse(
             category=setting_def["category"],
@@ -524,13 +527,18 @@ async def get_public_settings(
 async def get_settings_by_category(
     category: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin)
+    current_user: User = Depends(require_any_user)
 ):
     """
     Get settings by category
     Categories: database, ai_provider, application, security, server
-    Admin only
+    All users can view, but sensitive values are masked for non-admins
     """
+    # Get saved settings from database
+    db_settings = db.query(SystemSettings).all()
+    db_settings_dict = {setting.key: setting.value for setting in db_settings}
+    
+    # Get environment variables as fallback
     env_vars = read_env_file()
     settings_defs = get_all_settings_definitions()
     
@@ -538,12 +546,16 @@ async def get_settings_by_category(
     for setting_def in settings_defs:
         if setting_def["category"] == category:
             key = setting_def["key"]
-            value = env_vars.get(key, "")
+            # Prefer database value, fallback to env, then empty string
+            value = db_settings_dict.get(key) or env_vars.get(key, "")
             
-            # Don't mask DATABASE_URL - show actual value for admin
-            # Only mask API keys
-            if setting_def.get("is_encrypted") and value and "API_KEY" in key:
-                value = "***ENCRYPTED***"
+            # Mask sensitive values for non-admin users
+            is_admin = current_user.role in ["super_admin", "admin"]
+            if setting_def.get("is_encrypted") and value:
+                if not is_admin:
+                    value = "***PROTECTED***"
+                elif "API_KEY" in key:
+                    value = "***ENCRYPTED***"
             
             result.append(SettingResponse(
                 category=setting_def["category"],

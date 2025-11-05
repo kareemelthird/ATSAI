@@ -19,6 +19,7 @@ class UserRole(str, enum.Enum):
     ADMIN = "admin"              # Can manage users, settings, view all data
     HR_MANAGER = "hr_manager"    # Can manage candidates, jobs, applications
     RECRUITER = "recruiter"      # Can view and manage assigned candidates/jobs
+    USER = "user"                # Standard user - can upload files, use chat, view data (no delete/create)
     VIEWER = "viewer"            # Read-only access to candidates and jobs
     
 
@@ -46,8 +47,8 @@ class User(Base):
     phone = Column(String(50))
     
     # Role and Status (using String to match database constraints)
-    role = Column(String(50), nullable=False, default="viewer")
-    status = Column(String(50), nullable=False, default="pending")
+    role = Column(String(50), nullable=False, default="user")
+    status = Column(String(50), nullable=False, default="ACTIVE")  # Changed to uppercase to match enum
     
     # Profile
     avatar_url = Column(String(500))

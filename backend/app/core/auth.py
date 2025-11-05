@@ -150,6 +150,9 @@ require_super_admin = RoleChecker(["super_admin"])
 require_admin = RoleChecker(["super_admin", "admin"])
 require_hr_manager = RoleChecker(["super_admin", "admin", "hr_manager"])
 require_recruiter = RoleChecker(["super_admin", "admin", "hr_manager", "recruiter"])
+require_user = RoleChecker(["super_admin", "admin", "hr_manager", "recruiter", "user"])  # Standard logged-in users
+require_settings_edit = RoleChecker(["super_admin", "admin"])  # Only admins can edit settings
+require_any_user = RoleChecker(["super_admin", "admin", "hr_manager", "recruiter", "user", "viewer"])  # All users
 
 
 def has_permission(user: User, resource: str, action: str) -> bool:
@@ -180,10 +183,19 @@ def has_permission(user: User, resource: str, action: str) -> bool:
             "jobs": ["read"],
             "applications": ["create", "read", "update"],
         },
+        "user": {
+            "candidates": ["read"],
+            "jobs": ["read"],
+            "applications": ["read"],
+            "files": ["upload"],
+            "chat": ["use"],
+            "settings": ["read"],  # Can view but not edit
+        },
         "viewer": {
             "candidates": ["read"],
             "jobs": ["read"],
             "applications": ["read"],
+            "settings": ["read"],  # Can view but not edit
         }
     }
     
