@@ -168,7 +168,8 @@ async def call_ai_api(prompt: str, system_message: str = None, user_api_key: str
                     jobs_section = prompt.split("الوظائف المتاحة:")[1].split("APPLICATIONS STATUS:")[0] if "APPLICATIONS STATUS:" in prompt else prompt.split("الوظائف المتاحة:")[1]
                     jobs = re.findall(r'الوظيفة: ([^\n]+)', jobs_section)
                 
-                if candidates:
+                # Only provide mock response if we have actual database content
+                if candidates and len(candidates) > 0:
                     if user_language == "arabic":
                         response = f"وجدت {len(candidates)} مرشح في قاعدة البيانات:\n\n"
                         for i, name in enumerate(candidates[:3], 1):
