@@ -297,6 +297,33 @@ def get_all_settings_definitions() -> List[Dict[str, Any]]:
             "requires_restart": False
         },
         
+        # Personal API Key Settings
+        {
+            "category": "ai_provider",
+            "key": "require_personal_api_key",
+            "label": "Require Personal API Key",
+            "description": "Force users to provide their own API key for AI chat functionality",
+            "data_type": "boolean",
+            "is_public": True,
+            "requires_restart": False
+        },
+        {
+            "category": "ai_provider",
+            "key": "api_key_required_message_arabic",
+            "label": "API Key Required Message (Arabic)",
+            "description": "Message shown to users when personal API key is required (Arabic)",
+            "data_type": "text",
+            "requires_restart": False
+        },
+        {
+            "category": "ai_provider",
+            "key": "api_key_required_message_english",
+            "label": "API Key Required Message (English)",
+            "description": "Message shown to users when personal API key is required (English)",
+            "data_type": "text",
+            "requires_restart": False
+        },
+        
         # Usage Limits Settings
         {
             "category": "application",
