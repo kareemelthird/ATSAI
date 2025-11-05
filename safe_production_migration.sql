@@ -353,15 +353,15 @@ SELECT
     NOW()
 WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE key = 'ai_language_enforcement_english');
 
--- Force Personal API Key Setting
+-- Force Personal API Key Setting (with toggle option)
 INSERT INTO system_settings (id, category, key, value, description, is_public, created_at, updated_at) 
 SELECT 
     gen_random_uuid(), 
     'ai', 
     'require_personal_api_key', 
-    'true', 
-    'Force users to provide their own API key for AI chat functionality', 
-    false, 
+    'false', 
+    'Force users to provide their own API key for AI chat functionality (true/false)', 
+    true, 
     NOW(), 
     NOW()
 WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE key = 'require_personal_api_key');

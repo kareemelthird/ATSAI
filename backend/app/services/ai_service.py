@@ -158,6 +158,16 @@ async def call_ai_api(prompt: str, system_message: str = None, user_api_key: str
                 import re
                 candidate_section = prompt.split("CANDIDATE PROFILES:")[1].split("IMPORTANT:")[0]
                 candidates = re.findall(r'Candidate: ([^\n]+)', candidate_section)
+                
+                # Parse jobs from the context if available
+                jobs = []
+                if "AVAILABLE JOBS:" in prompt:
+                    jobs_section = prompt.split("AVAILABLE JOBS:")[1].split("APPLICATIONS STATUS:")[0] if "APPLICATIONS STATUS:" in prompt else prompt.split("AVAILABLE JOBS:")[1]
+                    jobs = re.findall(r'Job: ([^\n]+)', jobs_section)
+                elif "الوظائف المتاحة:" in prompt:
+                    jobs_section = prompt.split("الوظائف المتاحة:")[1].split("APPLICATIONS STATUS:")[0] if "APPLICATIONS STATUS:" in prompt else prompt.split("الوظائف المتاحة:")[1]
+                    jobs = re.findall(r'الوظيفة: ([^\n]+)', jobs_section)
+                
                 if candidates:
                     if user_language == "arabic":
                         response = f"وجدت {len(candidates)} مرشح في قاعدة البيانات:\n\n"
@@ -167,7 +177,16 @@ async def call_ai_api(prompt: str, system_message: str = None, user_api_key: str
                                 response += "مطور خبير بمهارات في Python وFastAPI وReact وJavaScript وPostgreSQL والتواصل. يعمل في TechCorp Solutions كمطور أول.\n\n"
                             else:
                                 response += "مطور متكامل بمهارات تقنية قوية وخبرة مهنية.\n\n"
-                        response += "\nهل تريد مني تقييم أي من هؤلاء المرشحين لوظيفة معينة؟"
+                        
+                        if jobs:
+                            response += f"\nالوظائف المتاحة ({len(jobs)}):\n"
+                            for i, job in enumerate(jobs[:3], 1):
+                                response += f"{i}. {job}\n"
+                            response += "\nيمكنني تقييم المرشحين لأي من هذه الوظائف."
+                        else:
+                            response += "\nملاحظة: لا توجد وظائف مفتوحة حالياً في النظام."
+                            
+                        response += "\n\nهل تريد مني تقييم أي من هؤلاء المرشحين لوظيفة معينة؟"
                     else:
                         response = f"I found {len(candidates)} candidate(s) in the database:\n\n"
                         for i, name in enumerate(candidates[:3], 1):
@@ -176,7 +195,16 @@ async def call_ai_api(prompt: str, system_message: str = None, user_api_key: str
                                 response += "Experienced developer with skills in Python, FastAPI, React, JavaScript, PostgreSQL, and Communication. Works at TechCorp Solutions as a Senior Software Developer.\n\n"
                             else:
                                 response += "Full-stack developer with strong technical skills and professional experience.\n\n"
-                        response += "\nWould you like me to evaluate any of these candidates for a specific position?"
+                        
+                        if jobs:
+                            response += f"\nAvailable Positions ({len(jobs)}):\n"
+                            for i, job in enumerate(jobs[:3], 1):
+                                response += f"{i}. {job}\n"
+                            response += "\nI can evaluate candidates for any of these positions."
+                        else:
+                            response += "\nNote: No active job openings are currently available in the system."
+                            
+                        response += "\n\nWould you like me to evaluate any of these candidates for a specific position?"
                     return response
             
             # Default conversational response
